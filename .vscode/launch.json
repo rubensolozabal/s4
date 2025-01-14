@@ -31,7 +31,7 @@
             "program": "train.py",
             "console": "integratedTerminal",
             "args": [
-                "experiment=lra/s4d-cifar"
+                "experiment=lra/s4d-cifar-spiking"
             ]
         }
     ]

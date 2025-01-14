@@ -27,6 +27,9 @@ model:
     disc: zoh
     init: diag-lin
     real_transform: exp
+    #r.s.o
+    final_act: identity # No GLU
+    activation: spiking
 
 dataset:
   grayscale: true
@@ -50,3 +53,10 @@ train:
 
 wandb:
   mode: disabled
+
+
+encoder: spiking_linear #linear
+
+# decoder:
+#   _name_: sequence
+#   mode: pool
