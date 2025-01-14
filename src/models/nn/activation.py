@@ -32,6 +32,9 @@ def Activation(activation=None, size=None, dim=-1):
         return SquaredReLU()
     elif activation == 'laplace':
         return Laplace()
+    # r.s.o
+    elif activation == 'spiking':
+        return F_custom()
     # Earlier experimentation with a LN in the middle of the block instead of activation
     # IIRC ConvNext does something like this?
     # elif activation == 'ln':
@@ -91,3 +94,94 @@ class Laplace(nn.Module):
         return laplace(x, mu=self.mu, sigma=self.sigma)
 
 
+# r.s.o - custom spike without update potential
+
+import math
+class ZIF(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, gama):
+        out = (input >= 0).float()
+        L = torch.tensor([gama])
+        ctx.save_for_backward(input, out, L)
+        return out
+
+    # @staticmethod
+    # def backward(ctx, grad_output):
+    #     (input, out, others) = ctx.saved_tensors
+    #     gama = others[0].item()
+    #     grad_input = grad_output
+    #     tmp = (1 / gama) * (1 / gama) * ((gama - input.abs()).clamp(min=0))
+    #     grad_input = grad_input * tmp
+    #     return grad_input, None
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, out, alpha_t = ctx.saved_tensors
+        alpha = alpha_t.item()
+        
+        # Surrogate gradient using the derivative of arctan-based surrogate:
+        #   g'(x) = alpha / [ 2 (1 + ((π/2) * alpha * x)^2) ]
+        grad_input = alpha / (2.0 * (1.0 + ((math.pi / 2.0) * alpha * input) ** 2))
+        
+        # Multiply by the incoming gradient
+        grad_input = grad_output * grad_input
+        
+        # No gradient for alpha (None)
+        return grad_input, None
+
+class LIF(nn.Module):
+    def __init__(self, T=0, thresh=1.0, tau=1., gama=1.0):
+        super(LIF, self).__init__()
+        self.act = ZIF.apply       
+        # self.thresh = nn.Parameter(torch.tensor([thresh], device='cuda'), requires_grad=False, )
+        self.thresh = torch.tensor([thresh], device='cuda', requires_grad=False)
+        self.tau = tau
+        self.gama = gama
+
+    def forward(self, x, **kwargs):        
+        # input [L, BS, feat]
+        L = x.size(0)
+
+        # Init mem
+        mem = torch.zeros_like(x[0])    # [BS, feat]
+
+        spike_pot = []
+        for t in range(L):
+            
+            mem = self.tau*mem + x[t, ...]
+
+            # mem should be bigger than 0
+            # mem = torch.clamp(mem, min=0)
+            
+            # print(mem[0])
+
+            temp_spike = self.act(mem-self.thresh, self.gama)
+            spike = temp_spike * self.thresh # spike [N, C, H, W]
+
+            # print(spike[0])
+            
+            ### Soft reset ###
+            # mem = mem - spike
+            ### Hard reset ###
+            mem = mem*(1.-spike)
+
+            spike_pot.append(spike) # spike_pot[0].shape [N, C, H, W]
+
+        s = torch.stack(spike_pot,dim=0) # dimension [T, N, C, H, W]  
+
+        return s    # L, BS, feat
+
+class F_custom(nn.Module):
+    def __init__(self, thresh=1.0, gama=1.0):
+        super(F_custom, self).__init__()
+        self.act = ZIF.apply       
+        # self.thresh = nn.Parameter(torch.tensor([thresh], device='cuda'), requires_grad=False, )
+        self.thresh = torch.tensor([thresh], device='cuda', requires_grad=False)
+        self.gama = gama
+
+    def forward(self, x, **kwargs):        
+        # Dimension agnostic
+        temp_spike = self.act(x-self.thresh, self.gama)
+        spike = temp_spike * self.thresh 
+
+        return spike   

@@ -139,6 +139,28 @@ class LayerEncoder(Encoder):
         return x
 
 
+#r.s.o
+from spikingjelly.activation_based import neuron, surrogate, layer, functional
+class SpikingEncoder(Encoder):
+    """Use an arbitary SequenceModule layer"""
+
+    def __init__(self, input_dim, d_model):
+        super().__init__()
+        # Linear layer with spiking activation
+        self.layer = nn.Linear(input_dim, d_model)
+        self.spiking = neuron.IFNode(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'cupy')
+
+    def forward(self, x):
+        x = self.layer(x) # Discard state
+
+        # Spiking
+        s = self.spiking(x.permute(1,0,2).contiguous()) # [B,L,d]-->[L,B,d]
+        s = s.permute(1,0,2).contiguous() # [L,B,d]->[B,L,d]
+        
+        return s
+    
+
+
 class TimestampEmbeddingEncoder(Encoder):
     """
     General time encoder for Pandas Timestamp objects (encoded as torch tensors).
@@ -429,6 +451,8 @@ registry = {
     "timestamp_embedding": TimestampEmbeddingEncoder,
     "tsindex_embedding": TSIndexEmbeddingEncoder,
     "layer": LayerEncoder,
+    #r.s.o
+    "spiking_linear": SpikingEncoder,
 }
 dataset_attrs = {
     "embedding": ["n_tokens"],
@@ -440,6 +464,8 @@ dataset_attrs = {
     "conv1d": ["d_input"],
     "patch2d": ["d_input"],
     "tsindex_embedding": ["n_ts"],
+    #r.s.o
+    "spiking_linear": ["d_input"],
 }
 model_attrs = {
     "embedding": ["d_model"],
@@ -455,6 +481,8 @@ model_attrs = {
     "timestamp_embedding": ["d_model"],
     "tsindex_embedding": ["d_model"],
     "layer": ["d_model"],
+    #r.s.o
+    "spiking_linear": ["d_model"],
 }
 
 

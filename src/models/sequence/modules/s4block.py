@@ -167,7 +167,7 @@ class S4Block(SequenceModule):
 
         y, state = self.layer(x, **kwargs)
 
-        y = self.activation(y)
+        y = self.activation(y)  # [BS, L, f]
 
         if self.gate is not None:
             y = self.output_gate(y)

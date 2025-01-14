@@ -25,6 +25,7 @@ from src.tasks import decoders, encoders, tasks
 from src.utils import registry
 from src.utils.optim.ema import build_ema_optimizer
 from src.utils.optim_groups import add_optimizer_hooks
+from spikingjelly.activation_based import neuron, surrogate, layer, functional
 
 log = src.utils.train.get_logger(__name__)
 
@@ -316,7 +317,13 @@ class SequenceLightningModule(pl.LightningModule):
 
     def _shared_step(self, batch, batch_idx, prefix="train"):
 
+        # Reset
+        functional.reset_net(self.encoder)
+        functional.reset_net(self.model)
+        functional.reset_net(self.decoder)
+
         self._process_state(batch, batch_idx, train=(prefix == "train"))
+
 
         x, y, w = self.forward(batch)
 

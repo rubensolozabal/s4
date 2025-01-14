@@ -5,10 +5,10 @@ scikit-learn
 matplotlib
 tqdm
 rich
-torchtext
+# torchtext
 lit # Getting installation errors with torch 2.0 if this isn't installed
 # torchvision
-pytorch-lightning==2.0.4
+pytorch-lightning #==2.0.4
 hydra-core
 omegaconf
 wandb
@@ -26,4 +26,4 @@ sktime # BIDMC
 scikit-learn # Impedance
 numba # Impedance
 gluonts # Monash
-timm==0.5.4 # ImageNet
+timm #==0.5.4 # ImageNet
