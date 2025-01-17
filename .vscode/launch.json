@@ -5,20 +5,20 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "mnist",
+            "name": "psmnist",
             "type": "debugpy",
             "request": "launch",
             "program": "example_SNN_v2_psmnist.py",
             "console": "integratedTerminal",
             "args": [
-                "--n_layers=4", "--dataset=mnist",
+                "--n_layers=4", "--dataset=mnist", "--permuted"
             ]
         },
         {
-            "name": "psmnist",
+            "name": "singleSSM",
             "type": "debugpy",
             "request": "launch",
-            "program": "example_SNN_v2_psmnist.py",
+            "program": "example_SNN_v3.py",
             "console": "integratedTerminal",
             "args": [
                 "--n_layers=4", "--dataset=mnist", "--permuted"

@@ -179,12 +179,12 @@ class SSMKernel(Kernel):
             C = contract('hmn, chn -> chm', V.conj().transpose(-1, -2), C) # V^* C
             C = repeat(C, 'c t n -> c (v t) n', v=self.H // C.size(-2)).clone().contiguous()
         else:
-            # C = torch.randn(self.channels, self.H, self.N//2, dtype=self.cdtype)
+            C = torch.randn(self.channels, self.H, self.N//2, dtype=self.cdtype)
             #r.s.o C=1
-            C = torch.ones(self.channels, self.n_ssm, self.N, dtype=self.cdtype)
-            C[:, :, :1] = 1.
-            C = contract('hmn, chn -> chm', V.conj().transpose(-1, -2), C) # V^* C
-            C = repeat(C, 'c t n -> c (v t) n', v=self.H // C.size(-2)).clone().contiguous()
+            # C = torch.ones(self.channels, self.n_ssm, self.N, dtype=self.cdtype)
+            # C[:, :, :1] = 1.
+            # C = contract('hmn, chn -> chm', V.conj().transpose(-1, -2), C) # V^* C
+            # C = repeat(C, 'c t n -> c (v t) n', v=self.H // C.size(-2)).clone().contiguous()
 
         # Broadcast other parameters to have n_ssm copies
         assert self.n_ssm % B.size(-2) == 0 \
