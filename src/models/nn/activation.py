@@ -130,7 +130,7 @@ class ZIF(torch.autograd.Function):
         return grad_input, None
 
 class LIF(nn.Module):
-    def __init__(self, T=0, thresh=1.0, tau=1., gama=1.0):
+    def __init__(self, T=0, thresh=1.0, tau=1., gama=2.0):
         super(LIF, self).__init__()
         self.act = ZIF.apply       
         # self.thresh = nn.Parameter(torch.tensor([thresh], device='cuda'), requires_grad=False, )
@@ -172,7 +172,7 @@ class LIF(nn.Module):
         return s    # L, BS, feat
 
 class F_custom(nn.Module):
-    def __init__(self, thresh=1.0, gama=1.0):
+    def __init__(self, thresh=1.0, gama=2.0):
         super(F_custom, self).__init__()
         self.act = ZIF.apply       
         # self.thresh = nn.Parameter(torch.tensor([thresh], device='cuda'), requires_grad=False, )

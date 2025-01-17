@@ -179,7 +179,12 @@ class SSMKernel(Kernel):
             C = contract('hmn, chn -> chm', V.conj().transpose(-1, -2), C) # V^* C
             C = repeat(C, 'c t n -> c (v t) n', v=self.H // C.size(-2)).clone().contiguous()
         else:
-            C = torch.randn(self.channels, self.H, self.N//2, dtype=self.cdtype)
+            # C = torch.randn(self.channels, self.H, self.N//2, dtype=self.cdtype)
+            #r.s.o C=1
+            C = torch.ones(self.channels, self.n_ssm, self.N, dtype=self.cdtype)
+            C[:, :, :1] = 1.
+            C = contract('hmn, chn -> chm', V.conj().transpose(-1, -2), C) # V^* C
+            C = repeat(C, 'c t n -> c (v t) n', v=self.H // C.size(-2)).clone().contiguous()
 
         # Broadcast other parameters to have n_ssm copies
         assert self.n_ssm % B.size(-2) == 0 \
@@ -528,7 +533,8 @@ class SSMKernelDiag(SSMKernel):
             self.register("B", B.real, self.lr_dict['B'], self.wd_dict['B'])
             self.register("A_real", inv_transform(-A.real, self.real_transform), self.lr_dict['A'], self.wd_dict['A'])
         else:
-            self.register("C", _c2r(_resolve_conj(C)), self.lr_dict['C'], None)
+            self.register("C", _c2r(_resolve_conj(C)), 0.0, None)
+            # self.register("C", _c2r(_resolve_conj(C)), self.lr_dict['C'], None)   #r.s.o
             self.register("B", _c2r(B), self.lr_dict['B'], self.wd_dict['B'])
             self.register("A_real", inv_transform(-A.real, self.real_transform), self.lr_dict['A'], self.wd_dict['A'])
             self.register("A_imag", inv_transform(-A.imag, self.imag_transform), self.lr_dict['A'], self.wd_dict['A'])

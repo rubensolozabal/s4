@@ -112,11 +112,14 @@ class SequenceResidualBlock(SequenceModule):
         else:
             y = y_for
 
+        # Post-norm r.s.o
+        if self.norm is not None and not self.prenorm: y = self.norm(y)
+
         # Residual
         if self.residual is not None: y = self.residual(x, self.drop_path(self.drop(y)), self.transposed)
 
         # Post-norm
-        if self.norm is not None and not self.prenorm: y = self.norm(y)
+        # if self.norm is not None and not self.prenorm: y = self.norm(y)
 
         # Pool
         if self.pool is not None: y, _ = self.pool(y)
