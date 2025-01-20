@@ -3,18 +3,19 @@ defaults:
   - /pipeline: cifar
   - /model: s4
   - override /scheduler: cosine_warmup
+  - override /model/layer: s4snn
 
 
 # S4(mode='diag', init='diag-lin', bidirectional=False, disc='zoh', real_transform='exp')
 model:
   dropout: 0.1
   tie_dropout: true
-  n_layers: 6
-  d_model: 512
+  n_layers: 4
+  d_model: 128
   prenorm: false
   norm: batch
   layer:
-    d_state: 64
+    d_state: 256
     lr: 0.001
     dt_min: 0.001
     dt_max: 0.1
@@ -23,7 +24,7 @@ model:
     n_ssm: 1
     # New parameters
     bidirectional: false
-    mode: diag  # Use S4D kernel inside generic SSM block
+    mode: diagsnn  # Use S4D kernel inside generic SSM block
     disc: zoh
     init: diag-lin
     real_transform: exp

@@ -533,8 +533,8 @@ class SSMKernelDiag(SSMKernel):
             self.register("B", B.real, self.lr_dict['B'], self.wd_dict['B'])
             self.register("A_real", inv_transform(-A.real, self.real_transform), self.lr_dict['A'], self.wd_dict['A'])
         else:
-            self.register("C", _c2r(_resolve_conj(C)), 0.0, None)
-            # self.register("C", _c2r(_resolve_conj(C)), self.lr_dict['C'], None)   #r.s.o
+            # self.register("C", _c2r(_resolve_conj(C)), 0.0, None) #r.s.o
+            self.register("C", _c2r(_resolve_conj(C)), self.lr_dict['C'], None)   
             self.register("B", _c2r(B), self.lr_dict['B'], self.wd_dict['B'])
             self.register("A_real", inv_transform(-A.real, self.real_transform), self.lr_dict['A'], self.wd_dict['A'])
             self.register("A_imag", inv_transform(-A.imag, self.imag_transform), self.lr_dict['A'], self.wd_dict['A'])
@@ -681,6 +681,255 @@ class SSMKernelDiag(SSMKernel):
         v = log_vandermonde_transpose(u, self.dB, self.dA.log(), u.size(-1))
         next_state = AL * state + v
         return next_state
+
+
+class SSMKernelDiag_snn(SSMKernel):
+    """SSM kernel using diagonal state matrix (S4D model).
+
+    Options:
+    disc: ['zoh' | 'bilinear' | 'dss'] Discretization options.
+    dt_fast:  (experimental) Parameterize inv_dt under sinh function.
+        (Ohno et al. "Fast Saturating Gate for Learning Long Time Scales with RNNs")
+    real_transform, imag_transform: ['none' | 'exp' | 'relu' | 'sigmoid' | 'softplus']
+        Parameterize the real/imag parts of the diagonal of A under this function.
+    bandlimit: Mask high frequencies of the kernel (indices corresponding to
+        diagonal elements with large imaginary part). Introduced in S4ND paper.
+    backend: ['cuda' | 'keops' | 'naive'] Options for Vandermonde/Cauchy kernel (in order of efficiency).
+    is_real : Real-valued SSM; can be interpreted as EMA.
+    """
+
+    def __init__(
+        self,
+        disc: str = 'zoh',  # Change to 'bilinear' to match S4, but should make little difference either way
+        dt_fast: bool = False,
+        real_transform: str = 'exp',
+        imag_transform: str = 'none',
+        bandlimit: Optional[float] = None,
+        backend: str = 'cuda',
+        is_real: bool = False,
+        **kwargs,
+    ):
+        # Special case: for real-valued, d_state semantics change
+        if is_real and 'd_state' in kwargs:
+            kwargs['d_state'] = kwargs['d_state'] * 2
+        super().__init__(**kwargs)
+        self.disc = disc
+        self.dt_fast = dt_fast
+        self.real_transform = real_transform
+        self.imag_transform = imag_transform
+        self.bandlimit = bandlimit
+        self.backend = backend
+        self.is_real = is_real
+
+        # Initialize dt, A, B, C
+        inv_dt = self.init_dt()
+        A, P, B, C = self.init_ssm_dplr()
+        # Note that in the Diag case, P will be ignored
+        # The DPLR case subclasses this and uses P
+        self.register_params(A, B, C, inv_dt, P)
+
+    def register_params(self, A, B, C, inv_dt, P):
+        """Process the initialization into form of trainable parameters.
+
+        A: (S, N) diagonal matrix
+        B: (S, N)
+        C: (C, H, N)
+        dt: (H) timescale per feature
+
+        Dimensions:
+        N (or d_state): state size
+        H (or d_model): total SSM copies
+        S (or n_ssm): number of trainable copies of (A, B, dt); must divide H
+        C (or channels): system is 1-dim to C-dim
+
+        The forward pass of this Module returns a tensor of shape (C, H, L)
+
+        Note: tensor shape N here denotes half the true state size, because of conjugate symmetry
+        """
+
+        assert self.backend in ['cuda', 'keops', 'naive']
+
+        if self.dt_fast: inv_dt = torch.asinh(inv_dt)
+
+        # Rank of low-rank correction
+        assert self.H == inv_dt.size(0)
+        assert self.N == A.size(-1) == B.size(-1) == C.size(-1)
+        assert self.n_ssm == A.size(-2) == B.size(-2) # Number of independent SSMs trained
+        self.repeat = self.H // A.size(0)
+
+        # Check that diagonal part has negative real and imag part
+        # (allow some tolerance for numerical precision on real part
+        # since it may be constructed by a diagonalization)
+        assert torch.all(A.real < 1e-4) and torch.all(A.imag <= 0.0)
+
+        # Broadcast everything to correct shapes
+        C = C.expand(torch.broadcast_shapes(C.shape, (1, self.H, self.N))) # (C, H, N)  # TODO originally this was only in DPLR, check safe for Diag
+        B = B.unsqueeze(0) # (1, H, N)
+        assert self.channels == C.shape[0]
+
+        # Register dt
+        self.register("inv_dt", inv_dt, self.lr_dict['dt'], self.wd_dict['dt'])
+        # Register ABC
+        if self.is_real:
+            self.register("C", C.real, self.lr_dict['C'], None)
+            self.register("B", B.real, self.lr_dict['B'], self.wd_dict['B'])
+            self.register("A_real", inv_transform(-A.real, self.real_transform), self.lr_dict['A'], self.wd_dict['A'])
+        else:
+            # self.register("C", _c2r(_resolve_conj(C)), 0.0, None) #r.s.o
+            self.register("C", _c2r(_resolve_conj(C)), self.lr_dict['C'], None)   
+            self.register("B", _c2r(B), self.lr_dict['B'], self.wd_dict['B'])
+            self.register("A_real", inv_transform(-A.real, self.real_transform), self.lr_dict['A'], self.wd_dict['A'])
+            self.register("A_imag", inv_transform(-A.imag, self.imag_transform), self.lr_dict['A'], self.wd_dict['A'])
+
+    def _get_params(self, rate=1.0):
+        """Process the internal parameters."""
+
+        # (S N) where S=n_ssm
+        if self.is_real:
+            A = -param_transform(self.A_real, self.real_transform)
+            B = self.B # (1 S N)
+            C = self.C # (C H N)
+        else:
+            A = -param_transform(self.A_real, self.real_transform) - 1j * param_transform(self.A_imag, self.imag_transform)
+            B = _r2c(self.B) # (1 S N)
+            C = _r2c(self.C) # (C H N)
+
+        if self.dt_fast: inv_dt = torch.sinh(self.inv_dt)
+        else: inv_dt = self.inv_dt
+        dt = param_transform(inv_dt, self.dt_transform) * rate # (H N)
+
+        if self.bandlimit is not None:
+            freqs = dt / rate * A.imag.abs() / (2*math.pi) # (H N)
+            mask = torch.where(freqs < self.bandlimit * .5, 1, 0)
+            C = C * mask
+
+        # Incorporate dt into A and B
+        A = repeat(A, 't n -> (v t) n', v=self.repeat)  # (H N)
+        B = repeat(B, 'b t n -> b (v t) n', v=self.repeat)  # (1 H N)
+
+        # TODO: The downstream algorithm should only need to access dt*A
+        # However the current DPLR kernel still uses dt and A separately
+        # Once that is fixed, this should return dtA instead of dt and A
+        dtA = dt * A  # (H N)
+
+        return dt, A, B, C
+
+    def forward(self, L, state=None, rate=1.0):
+        """See Kernel.forward() for argument documentation."""
+
+        dt, A, B, C = self._get_params(rate)
+        dtA = dt * A
+
+        # Augment B with state
+        if state is not None:
+            s = state / dt
+            if self.disc == 'bilinear':
+                s = s * (1. + dtA/2)
+            elif self.disc == 'zoh':
+                s = s * dtA * dtA.exp() / (dtA.exp() - 1.)
+            B = torch.cat([s, B], dim=-3) # (1+B H N)
+
+
+        # Combine B and C
+        C = (B[:, None, :, :] * C).view(-1, self.H, self.N)
+
+        # Dispatch which Vandermonde kernel to use
+        if has_cuda_extension and C.dtype == torch.cfloat and C.device.type == 'cuda' and self.backend == 'cuda':
+            log_vandermonde = log_vandermonde_cuda
+        elif has_pykeops and self.backend in ['cuda', 'keops']:
+            log_vandermonde = log_vandermonde_keops
+        else:
+            log_vandermonde = log_vandermonde_naive
+
+        # Main kernel
+        if self.disc == 'zoh':
+            # Power up
+            # C = C * (torch.exp(dtA)-1.) / A
+            # K = log_vandermonde(C, dtA, L) # (H L)
+            # r.s.o
+            K = dtA.unsqueeze(-1) * torch.arange(L, device=A.device) # (H N L)
+            B = (torch.exp(dtA)-1.) / A  # (H N)
+            K = 2 * torch.einsum('hnl, hn -> hnl', torch.exp(K), B).real # (H N L)
+        elif self.disc == 'bilinear':
+            C = C * (1. - dtA/2).reciprocal() * dt # or * dtA / A
+            dA = (1. + dtA/2) / (1. - dtA/2)
+            K = log_vandermonde(C, dA.log(), L)
+        elif self.disc == 'dss':
+            # Implementation from DSS meant for case when real eigenvalues can be positive
+            P = dtA.unsqueeze(-1) * torch.arange(L, device=C.device) # [H N L]
+            A_gt_0 = A.real > 0                                      # [N]
+            if A_gt_0.any():
+                with torch.no_grad():
+                    P_max = dtA * (A_gt_0 * (L-1))                   # [H N]
+                P = P - P_max.unsqueeze(-1)                          # [H N L]
+            S = P.exp()                                              # [H N L]
+
+            dtA_neg = dtA * (1 - 2*A_gt_0)                           # [H N]
+            num = dtA_neg.exp() - 1                                  # [H N]
+            den = (dtA_neg * L).exp() - 1                            # [H N]
+
+            # Inline reciprocal function for DSS logic
+            x = den * A
+            x_conj = _resolve_conj(x)
+            r = x_conj / (x*x_conj + 1e-7)
+
+            C = C * num * r             # [C H N]
+            K = contract('chn,hnl->chl', C, S).float()
+        else: raise ValueError(f"Discretization {self.disc} not supported")
+
+        K = K.view(self.channels, self.H, self.N,  L) # (C H N L)
+
+        if state is not None:
+            K_state = K[:-1, :, :, :] # (B C H L)
+        else:
+            K_state = None
+        # K = K[-1, :, :, :] # (C H L)
+
+        return K, K_state
+
+    def _setup_step(self):
+        """Set up dA, dB, dC discretized parameters for stepping."""
+
+        dt, A, B, C, = self._get_params()
+        # Incorporate dt into A
+        dtA = dt * A  # (H N)
+
+        if self.disc == 'zoh':
+            self.dA = torch.exp(dtA) # (H N)
+            self.dB = B * (torch.exp(dtA)-1.) / A # (C H N)
+        elif self.disc == 'bilinear':
+            self.dA = (1. + dtA/2) / (1. - dtA/2)
+            self.dB = B * (1. - dtA/2).reciprocal() * dt # or * dtA / A
+        self.dB = rearrange(self.dB, '1 h n -> h n')
+        self.dC = C
+
+    def default_state(self, *batch_shape):
+        C = _r2c(self.C)
+        state = torch.zeros(*batch_shape, self.H, self.N, dtype=C.dtype, device=C.device)
+        return state
+
+    def step(self, u, state):
+        next_state = contract("h n, b h n -> b h n", self.dA, state) \
+                + contract("h n, b h -> b h n", self.dB, u)
+        y = contract("c h n, b h n -> b c h", self.dC, next_state)
+        return 2*y.real, next_state
+
+    def forward_state(self, u, state):
+        """Pass the state forward through an entire sequence."""
+        self._setup_step()
+        AL = self.dA ** u.size(-1)
+        u = u.flip(-1).to(self.dA).contiguous() # (B H L)
+        # Dispatch which Vandermonde kernel to use
+        if has_pykeops and self.backend in ['cuda', 'keops']:
+            log_vandermonde_transpose = log_vandermonde_transpose_keops
+        else:
+            log_vandermonde_transpose = log_vandermonde_transpose_naive
+        v = log_vandermonde_transpose(u, self.dB, self.dA.log(), u.size(-1))
+        next_state = AL * state + v
+        return next_state
+
+
+
 
 class SSMKernelDPLR(SSMKernelDiag):
     """SSM kernel for diagonal + low rank (DPLR) state matrices, corresponding to the original S4 model."""

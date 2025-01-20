@@ -60,7 +60,8 @@ class SequenceResidualBlock(SequenceModule):
             self.d_residual = self.residual.d_output
 
         # Normalization
-        d_norm = d_input if self.prenorm else self.d_residual
+        # d_norm = d_input if self.prenorm else self.d_residual # r.s.o
+        d_norm = 1024
         # We don't use config to directly instantiate since Normalization has some special cases
         if norm is None:
             self.norm = None
@@ -113,7 +114,8 @@ class SequenceResidualBlock(SequenceModule):
             y = y_for
 
         # Post-norm r.s.o
-        if self.norm is not None and not self.prenorm: y = self.norm(y)
+        # if self.norm is not None and not self.prenorm: y = self.norm(y) #(B, L, H)
+        if self.norm is not None and not self.prenorm: y = self.norm(y.transpose(-1, -2)).transpose(-1, -2) #(B, L, H)
 
         # Residual
         if self.residual is not None: y = self.residual(x, self.drop_path(self.drop(y)), self.transposed)
