@@ -50,6 +50,7 @@ class SequenceModel(SequenceModule):
         norm: Optional[Mapping] = None,
         pool: Optional[Mapping] = None,
         track_norms: bool = True,
+        track_spikerates: bool = True,
         dropinp: int = 0.0,
     ):
         super().__init__()
@@ -57,6 +58,7 @@ class SequenceModel(SequenceModule):
         self.d_model = d_model
         self.transposed = transposed
         self.track_norms = track_norms
+        self.track_spikerates = track_spikerates
 
         # Input dropout (not really used)
         dropout_fn = partial(DropoutNd, transposed=self.transposed) if tie_dropout else nn.Dropout
@@ -116,22 +118,31 @@ class SequenceModel(SequenceModule):
 
         # Track norms
         if self.track_norms: output_norms = [torch.mean(inputs.detach() ** 2)]
+        if self.track_spikerates: spike_rates = []
 
         # Apply layers
         outputs = inputs
         prev_states = [None] * len(self.layers) if state is None else state
         next_states = []
         for layer, prev_state in zip(self.layers, prev_states):
-            outputs, state = layer(outputs, *args, state=prev_state, **kwargs)
+            outputs, state, *extra = layer(outputs, *args, state=prev_state, **kwargs)
+            if self.track_spikerates: spike_rates.append(extra[0])
             next_states.append(state)
             if self.track_norms: output_norms.append(torch.mean(outputs.detach() ** 2))
         if self.norm is not None: outputs = self.norm(outputs)
 
         if self.transposed: outputs = rearrange(outputs, 'b d ... -> b ... d')
 
+        self.metrics = {}
+        if self.track_spikerates:
+            metrics = to_dict(spike_rates, recursive=False)
+            self.metrics |= {f'spikerate/{i}': v for i, v in metrics.items()}
+            
+
+
         if self.track_norms:
             metrics = to_dict(output_norms, recursive=False)
-            self.metrics = {f'norm/{i}': v for i, v in metrics.items()}
+            self.metrics |= {f'norm/{i}': v for i, v in metrics.items()}
 
         return outputs, next_states
 

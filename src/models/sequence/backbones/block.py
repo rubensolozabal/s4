@@ -103,7 +103,7 @@ class SequenceResidualBlock(SequenceModule):
         if self.norm is not None and self.prenorm: y = self.norm(y)
 
         # Black box layer
-        y_for, new_state = self.layer(y, state=state, **kwargs)
+        y_for, new_state, *extra = self.layer(y, state=state, **kwargs)
         if self.bidirectional:
             assert state is None
             y_rev, _ = self.reverse_layer(y, state=state, **kwargs)
@@ -112,6 +112,8 @@ class SequenceResidualBlock(SequenceModule):
             y = self.bidirectional_linear(y)
         else:
             y = y_for
+
+        extra = extra[0] if len(extra) > 0 else None
 
         # Post-norm r.s.o
         # if self.norm is not None and not self.prenorm: y = self.norm(y) #(B, L, H)
@@ -126,7 +128,7 @@ class SequenceResidualBlock(SequenceModule):
         # Pool
         if self.pool is not None: y, _ = self.pool(y)
 
-        return y, state
+        return y, state, extra
 
     def step(self, x, state, **kwargs):
         assert not self.bidirectional

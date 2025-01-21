@@ -171,6 +171,11 @@ class S4Block_snn(SequenceModule):
 
         y = self.activation(y)  # [BS, L, f]
 
+        # Spike rate
+        spike_rate = y.sum() / y.size(0)   # Avg.spiker per batch
+        total_slots = y.size(1) * y.size(2) # Batch size * sequence length
+        spike_rate = spike_rate / total_slots
+
         if self.gate is not None:
             y = self.output_gate(y)
             y = y * v
@@ -180,7 +185,7 @@ class S4Block_snn(SequenceModule):
 
         if self.transposed: y = rearrange(y, 'b d ... -> b ... d')
 
-        return y, state
+        return y, state,  spike_rate
 
     def setup_step(self, **kwargs):
         self.layer.setup_step(**kwargs)

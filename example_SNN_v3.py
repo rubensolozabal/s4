@@ -340,8 +340,8 @@ class S4Model(nn.Module):
         # or poisson encoder
         # x = self.pe(x)
 
-
-        for layer, norm, dropout, spike in zip(self.s4_layers, self.norms, self.dropouts, self.spike_layers):
+        spike_rates = [0.0 for _ in range(len(self.s4_layers))]
+        for i, (layer, norm, dropout, spike) in enumerate(zip(self.s4_layers, self.norms, self.dropouts, self.spike_layers)):
             # Each iteration of this loop will map (B, d_model, L) -> (B, d_model, L)
 
             z = x
@@ -360,6 +360,11 @@ class S4Model(nn.Module):
             z_spike = spike(z.permute(2,0,1).contiguous()) # [B,d,L]-->[L,B,d]
             z = z_spike.permute(1,2,0).contiguous() # [L,B,d]->[B,d,L]
 
+            # Spike rate
+            spike_rate = z.sum() / z.size(0)   # Avg.spiker per batch
+            total_slots = z.size(1) * z.size(2) # Batch size * sequence length
+            spike_rates[i] = spike_rate / total_slots
+
             # Dropout on the output of the S4 block
             z = dropout(z)
 
@@ -375,6 +380,8 @@ class S4Model(nn.Module):
             x = z + x
             # x = z
 
+        # Average spike all blocks
+        spike_rate = sum(spike_rates) / len(spike_rates)
 
         x = x.transpose(-1, -2)
 
@@ -542,13 +549,13 @@ def eval(epoch, dataloader, checkpoint=False):
 
 pbar = tqdm(range(start_epoch, args.epochs))
 for epoch in pbar:
-    if epoch == 0:
-        pbar.set_description('Epoch: %d' % (epoch))
-    else:
-        pbar.set_description('Epoch: %d | Val acc: %1.3f' % (epoch, val_acc))
     train()
     val_acc = eval(epoch, valloader, checkpoint=True)
     eval(epoch, testloader)
     scheduler.step()
+    if epoch == 0:
+        pbar.set_description('Epoch: %d' % (epoch))
+    else:
+        pbar.set_description('Epoch: %d | Val acc: %1.3f' % (epoch, val_acc))
     # print(f"Epoch {epoch} learning rate: {scheduler.get_last_lr()}")
 

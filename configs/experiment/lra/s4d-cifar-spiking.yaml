@@ -53,7 +53,8 @@ train:
   seed: 2222
 
 wandb:
-  mode: disabled
+  name: s4d-cifar-spiking
+  # mode: disabled
 
 
 encoder: spiking_linear #linear
