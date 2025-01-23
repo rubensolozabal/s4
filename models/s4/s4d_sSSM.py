@@ -97,11 +97,11 @@ class custom_glu(nn.Module):
 
 
 class S4D(nn.Module):
-    def __init__(self, d_model, d_state=256, dropout=0.0, transposed=True, **kernel_args):
+    def __init__(self, d_model, d_state=256, dropout=0.0, drop_kernel=0.0, transposed=True, **kernel_args):
         super().__init__()
 
         self.h = d_model
-        self.n = d_state
+        self.n = d_model*2
         self.d_output = self.h
         self.transposed = transposed
 
@@ -115,12 +115,13 @@ class S4D(nn.Module):
         # dropout_fn = nn.Dropout2d # NOTE: bugged in PyTorch 1.11
         dropout_fn = DropoutNd
         self.dropout = dropout_fn(dropout) if dropout > 0.0 else nn.Identity()
+        self.drop_kernel = nn.Dropout(drop_kernel) if drop_kernel > 0.0 else nn.Identity()
 
         # position-wise output transform to mix features
         self.output_linear = nn.Sequential(
             nn.Conv1d(self.h, 2*self.h, kernel_size=1),
-            # nn.GLU(dim=-2),
-            custom_glu(dim=-2),
+            nn.GLU(dim=-2),
+            # custom_glu(dim=-2),
         )
         # self.f_spike = neuron.IFNode_without_membrane_update(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'cupy')
 
@@ -131,6 +132,9 @@ class S4D(nn.Module):
 
         # Compute SSM Kernel
         k = self.kernel(L=L) # (H N L)
+
+        # Kernel dropout
+        k = self.drop_kernel(k)
 
         # Take kernel 0 
         k = k[0] # (N L)
@@ -149,8 +153,8 @@ class S4D(nn.Module):
         # Compute D term in state space equation - essentially a skip connection
         # y = y + u * self.D.unsqueeze(-1)
 
-        # y = self.dropout(self.activation(y))
-        # y = self.output_linear(y)
+        y = self.dropout(self.activation(y))
+        y = self.output_linear(y)
 
         if not self.transposed: y = y.transpose(-1, -2)
         return y, None # Return a dummy state to satisfy this repo's interface, but this can be modified

@@ -28,12 +28,12 @@ import torch.backends.cudnn as cudnn
 
 import torchvision
 import torchvision.transforms as transforms
-
+from torch.utils.data import Dataset, DataLoader
 import os
 import argparse
 
 from models.s4.s4 import S4Block as S4  # Can use full version instead of minimal S4D standalone below
-from models.s4.s4d import S4D
+from models.s4.s4d_sSSM import S4D
 from tqdm.auto import tqdm
 
 # Dropout broke in PyTorch 1.11
@@ -56,6 +56,7 @@ parser.add_argument('--weight_decay', default=0.01, type=float, help='Weight dec
 parser.add_argument('--epochs', default=100, type=float, help='Training epochs')
 # Dataset
 parser.add_argument('--dataset', default='cifar10', choices=['mnist', 'cifar10'], type=str, help='Dataset')
+parser.add_argument('--permuted', action='store_true', help='Use permuted MNIST')
 parser.add_argument('--grayscale', action='store_true', help='Use grayscale CIFAR10')
 # Dataloader
 parser.add_argument('--num_workers', default=4, type=int, help='Number of workers to use for dataloader')
@@ -88,6 +89,7 @@ def split_train_val(train, val_split):
 
 if args.dataset == 'cifar10':
 
+    length = 1024
     if args.grayscale:
         transform = transforms.Compose([
             transforms.Grayscale(),
@@ -121,11 +123,13 @@ if args.dataset == 'cifar10':
 
 elif args.dataset == 'mnist':
 
+    length = 784
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Lambda(lambda x: x.view(1, 784).t())
     ])
     transform_train = transform_test = transform
+
 
     trainset = torchvision.datasets.MNIST(
         root='./data', train=True, download=True, transform=transform_train)
@@ -137,18 +141,144 @@ elif args.dataset == 'mnist':
 
     testset = torchvision.datasets.MNIST(
         root='./data', train=False, download=True, transform=transform_test)
+    
+    if args.permuted:
+
+        perm = torch.load("permutation.pt").long() # created using torch.randperm(784)
+
+        class psMNIST(Dataset):
+            """ Dataset that defines the psMNIST dataset, given the MNIST data and a fixed permutation """
+
+            def __init__(self, mnist, perm):
+                self.mnist = mnist # also a torch.data.Dataset object
+                self.perm  = perm
+
+            def __len__(self):
+                return len(self.mnist)
+
+            def __getitem__(self, idx):
+                img, label = self.mnist[idx]
+                unrolled = img.reshape(-1)
+                permuted = unrolled[self.perm]
+                permuted = permuted.reshape(-1, 1)
+                return permuted, label
+            
+        
+        trainset = psMNIST(trainset, perm)
+        valset   = psMNIST(valset, perm)
+        testset  = psMNIST(testset, perm)
 
     d_input = 1
     d_output = 10
-else: raise NotImplementedError
+else: 
+    raise NotImplementedError
 
 # Dataloaders
+
 trainloader = torch.utils.data.DataLoader(
     trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 valloader = torch.utils.data.DataLoader(
     valset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 testloader = torch.utils.data.DataLoader(
     testset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+
+
+from spikingjelly.activation_based import neuron, surrogate, layer, functional, encoding
+
+import math
+class ZIF(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, gama):
+        out = (input >= 0).float()
+        L = torch.tensor([gama])
+        ctx.save_for_backward(input, out, L)
+        return out
+
+    # @staticmethod
+    # def backward(ctx, grad_output):
+    #     (input, out, others) = ctx.saved_tensors
+    #     gama = others[0].item()
+    #     grad_input = grad_output
+    #     tmp = (1 / gama) * (1 / gama) * ((gama - input.abs()).clamp(min=0))
+    #     grad_input = grad_input * tmp
+    #     return grad_input, None
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, out, alpha_t = ctx.saved_tensors
+        alpha = alpha_t.item()
+        
+        # Surrogate gradient using the derivative of arctan-based surrogate:
+        #   g'(x) = alpha / [ 2 (1 + ((π/2) * alpha * x)^2) ]
+        grad_input = alpha / (2.0 * (1.0 + ((math.pi / 2.0) * alpha * input) ** 2))
+        
+        # Multiply by the incoming gradient
+        grad_input = grad_output * grad_input
+        
+        # No gradient for alpha (None)
+        return grad_input, None
+
+class LIF(nn.Module):
+    def __init__(self, T=0, thresh=1.0, tau=1., gama=1.0):
+        super(LIF, self).__init__()
+        self.act = ZIF.apply       
+        # self.thresh = nn.Parameter(torch.tensor([thresh], device='cuda'), requires_grad=False, )
+        self.thresh = torch.tensor([thresh], device='cuda', requires_grad=False)
+        self.tau = tau
+        self.gama = gama
+
+    def forward(self, x, **kwargs):        
+        # input [L, BS, feat]
+        L = x.size(0)
+
+        # Init mem
+        mem = torch.zeros_like(x[0])    # [BS, feat]
+
+        spike_pot = []
+        for t in range(L):
+            
+            mem = self.tau*mem + x[t, ...]
+
+            # mem should be bigger than 0
+            # mem = torch.clamp(mem, min=0)
+            
+            # print(mem[0])
+
+            temp_spike = self.act(mem-self.thresh, self.gama)
+            spike = temp_spike * self.thresh # spike [N, C, H, W]
+
+            # print(spike[0])
+            
+            ### Soft reset ###
+            # mem = mem - spike
+            ### Hard reset ###
+            mem = mem*(1.-spike)
+
+            spike_pot.append(spike) # spike_pot[0].shape [N, C, H, W]
+
+        s = torch.stack(spike_pot,dim=0) # dimension [T, N, C, H, W]  
+
+        return s    # L, BS, feat
+
+class F_custom(nn.Module):
+    def __init__(self, thresh=1.0, gama=1.0):
+        super(F_custom, self).__init__()
+        self.act = ZIF.apply       
+        # self.thresh = nn.Parameter(torch.tensor([thresh], device='cuda'), requires_grad=False, )
+        self.thresh = torch.tensor([thresh], device='cuda', requires_grad=False)
+        self.gama = gama
+
+    def forward(self, x, **kwargs):        
+        # input [L, BS, feat]
+        L = x.size(0)
+
+        spike = self.act(x-self.thresh, self.gama)
+        # spike = spike * self.thresh # spike [N, C, H, W]
+
+
+        return spike    # L, BS, feat
+    
+
 
 class S4Model(nn.Module):
 
@@ -168,49 +298,96 @@ class S4Model(nn.Module):
         # Linear encoder (d_input = 1 for grayscale and 3 for RGB)
         self.encoder = nn.Linear(d_input, d_model)
 
+        # Spiking Poisson Encoder
+        self.pe = encoding.PoissonEncoder()
+
         # Stack S4 layers as residual blocks
         self.s4_layers = nn.ModuleList()
+        self.spike_layers = nn.ModuleList()
         self.norms = nn.ModuleList()
         self.dropouts = nn.ModuleList()
         for _ in range(n_layers):
             self.s4_layers.append(
                 S4D(d_model, dropout=dropout, transposed=True, lr=min(0.001, args.lr))
             )
-            self.norms.append(nn.LayerNorm(d_model))
+            # self.norms.append(nn.LayerNorm(d_model))
+            self.norms.append(nn.BatchNorm1d(length))
             self.dropouts.append(dropout_fn(dropout))
+            self.spike_layers.append(F_custom(thresh=0.1, gama=2.0))
+            # self.spike_layers.append(neuron.IFNode_without_membrane_update(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'torch')) # Cuda not available)
 
         # Linear decoder
         self.decoder = nn.Linear(d_model, d_output)
+        # self.f_spike = neuron.IFNode_without_membrane_update(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'torch') # Cuda not available
+        # self.f_spike = neuron.IFNode(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'cupy')
+        # self.f_spike = LIF_custom(thresh=0.0, gama=1.0)  
+        self.f_h = neuron.IFNode(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'cupy')
+        self.W_h = nn.Linear(in_features = d_model , out_features = d_model)
+
+        self.mixer = nn.Linear(d_model, d_model)
 
     def forward(self, x):
         """
         Input x is shape (B, L, d_input)
         """
-        x = self.encoder(x)  # (B, L, d_input) -> (B, L, d_model)
+        # x = self.encoder(x)  # (B, L, d_input) -> (B, L, d_model)
+        # x = x.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
 
-        x = x.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
-        for layer, norm, dropout in zip(self.s4_layers, self.norms, self.dropouts):
+        # or spike encoding
+        x = self.f_h(self.encoder(x).transpose(-1,-2).permute(2,0,1).contiguous()) # [B,L,d]-->[L,B,d]
+        x = x.permute(1,2,0).contiguous() # [L,B,d]->[B,d,L] 
+
+        # or poisson encoder
+        # x = self.pe(x)
+
+        spike_rates = [0.0 for _ in range(len(self.s4_layers))]
+        for i, (layer, norm, dropout, spike) in enumerate(zip(self.s4_layers, self.norms, self.dropouts, self.spike_layers)):
             # Each iteration of this loop will map (B, d_model, L) -> (B, d_model, L)
 
             z = x
-            if self.prenorm:
-                # Prenorm
-                z = norm(z.transpose(-1, -2)).transpose(-1, -2)
+            # if self.prenorm:
+            #     # Prenorm
+            #     z = norm(z.transpose(-1, -2)).transpose(-1, -2)
+
+            # Mixer
+            z = self.mixer(z.permute(0,2,1).contiguous()) # [B,d,L]-->[B,L,d]
+            z = z.permute(0,2,1).contiguous() # [B,L,d]->[B,d,L]
 
             # Apply S4 block: we ignore the state input and output
-            z, _ = layer(z)
+            z, _ = layer(z) # [B,d,L]
+
+            # Add spike
+            z_spike = spike(z.permute(2,0,1).contiguous()) # [B,d,L]-->[L,B,d]
+            z = z_spike.permute(1,2,0).contiguous() # [L,B,d]->[B,d,L]
+
+            # Spike rate
+            spike_rate = z.sum() / z.size(0)   # Avg.spiker per batch
+            total_slots = z.size(1) * z.size(2) # Batch size * sequence length
+            spike_rates[i] = spike_rate / total_slots
 
             # Dropout on the output of the S4 block
             z = dropout(z)
 
             # Residual connection
-            x = z + x
+            # x = z + x
+            # x = z
 
             if not self.prenorm:
                 # Postnorm
-                x = norm(x.transpose(-1, -2)).transpose(-1, -2)
+                z = norm(z.transpose(-1, -2)).transpose(-1, -2)
+
+            # Residual connection
+            x = z + x
+            # x = z
+
+        # Average spike all blocks
+        spike_rate = sum(spike_rates) / len(spike_rates)
 
         x = x.transpose(-1, -2)
+
+        #r.s.o
+        # x = self.f_h(self.W_h(x).transpose(-1,-2).permute(2,0,1).contiguous()) # [B,N,C]->[B,C,N]->[N,B,C]
+        # x = x.permute(1,0,2).contiguous() # [N,B,C]->[B,N,C]
 
         # Pooling: average pooling over the sequence length
         x = x.mean(dim=1)
@@ -319,13 +496,13 @@ def train():
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
-        acc = 100.*correct/total
+        # Reset
+        functional.reset_net(model)
+
         pbar.set_description(
             'Batch Idx: (%d/%d) | Loss: %.3f | Acc: %.3f%% (%d/%d)' %
-            (batch_idx, len(trainloader), train_loss/(batch_idx+1), acc, correct, total)
+            (batch_idx, len(trainloader), train_loss/(batch_idx+1), 100.*correct/total, correct, total)
         )
-        
-    return acc
 
 
 def eval(epoch, dataloader, checkpoint=False):
@@ -346,13 +523,14 @@ def eval(epoch, dataloader, checkpoint=False):
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
+            # Reset
+            functional.reset_net(model)
+
             pbar.set_description(
                 'Batch Idx: (%d/%d) | Loss: %.3f | Acc: %.3f%% (%d/%d)' %
                 (batch_idx, len(dataloader), eval_loss/(batch_idx+1), 100.*correct/total, correct, total)
             )
 
-
-    acc = 100.*correct/total
     # Save checkpoint.
     if checkpoint:
         acc = 100.*correct/total
@@ -367,25 +545,17 @@ def eval(epoch, dataloader, checkpoint=False):
             torch.save(state, './checkpoint/ckpt.pth')
             best_acc = acc
 
-    return acc
-
-import wandb
-# highlight-start
-run = wandb.init(
-    # Set the project where this run will be logged
-    project="sSSM_cifar",
-    # Track hyperparameters and run metadata
-    config=args,
-)
+        return acc
 
 pbar = tqdm(range(start_epoch, args.epochs))
 for epoch in pbar:
-    train_acc = train()
+    train()
     val_acc = eval(epoch, valloader, checkpoint=True)
-    test_acc = eval(epoch, testloader)
+    eval(epoch, testloader)
     scheduler.step()
-
-    pbar.set_description('Epoch: %d | Val acc: %1.3f' % (epoch, val_acc))
-    wandb.log({"train_acc": train_acc, "val_acc": val_acc, "test_acc": test_acc})
+    if epoch == 0:
+        pbar.set_description('Epoch: %d' % (epoch))
+    else:
+        pbar.set_description('Epoch: %d | Val acc: %1.3f' % (epoch, val_acc))
     # print(f"Epoch {epoch} learning rate: {scheduler.get_last_lr()}")
 

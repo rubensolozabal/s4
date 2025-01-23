@@ -151,7 +151,7 @@ class SpikingEncoder(Encoder):
         self.spiking = neuron.IFNode(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'cupy')
 
     def forward(self, x):
-        x = self.layer(x) # Discard state
+        x = self.layer(x) # [B,L,1] -> [B,L,d]
 
         # Spiking
         s = self.spiking(x.permute(1,0,2).contiguous()) # [B,L,d]-->[L,B,d]

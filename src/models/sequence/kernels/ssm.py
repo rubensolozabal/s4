@@ -877,7 +877,9 @@ class SSMKernelDiag_snn(SSMKernel):
             K = contract('chn,hnl->chl', C, S).float()
         else: raise ValueError(f"Discretization {self.disc} not supported")
 
-        K = K.view(self.channels, self.H, self.N,  L) # (C H N L)
+        # K = K.view(self.channels, self.H, self.N,  L) # (C H N L)
+        K = K.expand(self.channels, -1, -1, -1) # (C H N L)
+
 
         if state is not None:
             K_state = K[:-1, :, :, :] # (B C H L)

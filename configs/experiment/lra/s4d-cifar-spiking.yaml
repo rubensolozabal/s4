@@ -54,7 +54,7 @@ train:
 
 wandb:
   name: s4d-cifar-spiking
-  # mode: disabled
+  mode: disabled
 
 
 encoder: spiking_linear #linear

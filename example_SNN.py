@@ -1,3 +1,4 @@
+# Spikinglized S4D
 '''
 Train an S4 model on sequential CIFAR10 / sequential MNIST with PyTorch for demonstration purposes.
 This code borrows heavily from https://github.com/kuangliu/pytorch-cifar.
@@ -189,8 +190,8 @@ class S4Model(nn.Module):
 
         # Linear decoder
         self.decoder = nn.Linear(d_model, d_output)
-        self.f_spike = neuron.IFNode_without_membrane_update(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'torch') # Cuda not available
-        # self.f_spike = neuron.IFNode(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'cupy')
+        # self.f_spike = neuron.IFNode_without_membrane_update(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'torch') # Cuda not available
+        self.f_spike = neuron.IFNode(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'cupy')
         self.f_h = neuron.IFNode(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'cupy')
         self.W_h = nn.Linear(in_features = d_model , out_features = d_model)
 
@@ -202,7 +203,6 @@ class S4Model(nn.Module):
         # x = x.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
 
         # or spike encoding
-
         x = self.f_h(self.encoder(x).transpose(-1,-2).permute(2,0,1).contiguous()) # [B,L,d]-->[L,B,d]
         x = x.permute(1,2,0).contiguous() # [L,B,d]->[B,d,L] 
 

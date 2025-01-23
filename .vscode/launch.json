@@ -18,10 +18,10 @@
             "name": "singleSSM",
             "type": "debugpy",
             "request": "launch",
-            "program": "example_SNN_v3.py",
+            "program": "example_SNN_v3_sSSM.py",
             "console": "integratedTerminal",
             "args": [
-                "--n_layers=4", "--dataset=mnist", "--permuted"
+                "--n_layers=4", "--dataset=mnist"
             ]
         },
         {

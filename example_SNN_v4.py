@@ -1,3 +1,5 @@
+# Why CIFAR not working?
+
 '''
 Train an S4 model on sequential CIFAR10 / sequential MNIST with PyTorch for demonstration purposes.
 This code borrows heavily from https://github.com/kuangliu/pytorch-cifar.
@@ -260,9 +262,9 @@ class LIF(nn.Module):
 
         return s    # L, BS, feat
 
-class LIF_custom(nn.Module):
+class F_custom(nn.Module):
     def __init__(self, thresh=1.0, gama=1.0):
-        super(LIF_custom, self).__init__()
+        super(F_custom, self).__init__()
         self.act = ZIF.apply       
         # self.thresh = nn.Parameter(torch.tensor([thresh], device='cuda'), requires_grad=False, )
         self.thresh = torch.tensor([thresh], device='cuda', requires_grad=False)
@@ -272,8 +274,8 @@ class LIF_custom(nn.Module):
         # input [L, BS, feat]
         L = x.size(0)
 
-        temp_spike = self.act(x-self.thresh, self.gama)
-        spike = temp_spike * self.thresh # spike [N, C, H, W]
+        spike = self.act(x-self.thresh, self.gama)
+        # spike = spike * self.thresh # spike [N, C, H, W]
 
 
         return spike    # L, BS, feat
@@ -289,6 +291,7 @@ class S4Model(nn.Module):
         d_model=256,
         n_layers=4,
         dropout=0.2,
+        drop_kernel=0.0,
         prenorm=False,
     ):
         super().__init__()
@@ -303,18 +306,19 @@ class S4Model(nn.Module):
 
         # Stack S4 layers as residual blocks
         self.s4_layers = nn.ModuleList()
-        self.spike_layers = nn.ModuleList()
+        self.activations = nn.ModuleList()
         self.norms = nn.ModuleList()
         self.dropouts = nn.ModuleList()
         for _ in range(n_layers):
             self.s4_layers.append(
-                S4D(d_model, dropout=dropout, transposed=True, lr=min(0.001, args.lr))
+                S4D(d_model, dropout=dropout, drop_kernel=drop_kernel, transposed=True, lr=min(0.001, args.lr))
             )
             # self.norms.append(nn.LayerNorm(d_model))
             self.norms.append(nn.BatchNorm1d(length))
             self.dropouts.append(dropout_fn(dropout))
-            self.spike_layers.append(LIF_custom(thresh=1.0, gama=2.0))
-            # self.spike_layers.append(neuron.IFNode_without_membrane_update(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'torch')) # Cuda not available)
+            # self.activations.append(nn.GELU())
+            self.activations.append(F_custom(thresh=0.1, gama=2.0))
+            # self.activations.append(neuron.IFNode_without_membrane_update(surrogate_function=surrogate.ATan(), step_mode='m', backend = 'torch')) # Cuda not available)
 
         # Linear decoder
         self.decoder = nn.Linear(d_model, d_output)
@@ -330,18 +334,18 @@ class S4Model(nn.Module):
         """
         Input x is shape (B, L, d_input)
         """
-        # x = self.encoder(x)  # (B, L, d_input) -> (B, L, d_model)
-        # x = x.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
+        x = self.encoder(x)  # (B, L, d_input) -> (B, L, d_model)
+        x = x.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
 
         # or spike encoding
-        x = self.f_h(self.encoder(x).transpose(-1,-2).permute(2,0,1).contiguous()) # [B,L,d]-->[L,B,d]
-        x = x.permute(1,2,0).contiguous() # [L,B,d]->[B,d,L] 
+        # x = self.f_h(self.encoder(x).transpose(-1,-2).permute(2,0,1).contiguous()) # [B,L,d]-->[L,B,d]
+        # x = x.permute(1,2,0).contiguous() # [L,B,d]->[B,d,L] 
 
         # or poisson encoder
         # x = self.pe(x)
 
         spike_rates = [0.0 for _ in range(len(self.s4_layers))]
-        for i, (layer, norm, dropout, spike) in enumerate(zip(self.s4_layers, self.norms, self.dropouts, self.spike_layers)):
+        for i, (layer, norm, dropout, act) in enumerate(zip(self.s4_layers, self.norms, self.dropouts, self.activations)):
             # Each iteration of this loop will map (B, d_model, L) -> (B, d_model, L)
 
             z = x
@@ -350,15 +354,15 @@ class S4Model(nn.Module):
             #     z = norm(z.transpose(-1, -2)).transpose(-1, -2)
 
             # Mixer
-            z = self.mixer(z.permute(0,2,1).contiguous()) # [B,d,L]-->[B,L,d]
-            z = z.permute(0,2,1).contiguous() # [B,L,d]->[B,d,L]
+            # z = self.mixer(z.permute(0,2,1).contiguous()) # [B,d,L]-->[B,L,d]
+            # z = z.permute(0,2,1).contiguous() # [B,L,d]->[B,d,L]
 
             # Apply S4 block: we ignore the state input and output
             z, _ = layer(z) # [B,d,L]
 
-            # Add spike
-            z_spike = spike(z.permute(2,0,1).contiguous()) # [B,d,L]-->[L,B,d]
-            z = z_spike.permute(1,2,0).contiguous() # [L,B,d]->[B,d,L]
+            # Add activation
+            # z_spike = act(z.permute(2,0,1).contiguous()) # [B,d,L]-->[L,B,d]
+            # z = z_spike.permute(1,2,0).contiguous() # [L,B,d]->[B,d,L]
 
             # Spike rate
             spike_rate = z.sum() / z.size(0)   # Avg.spiker per batch
@@ -499,11 +503,13 @@ def train():
         # Reset
         functional.reset_net(model)
 
+        acc = 100.*correct/total
         pbar.set_description(
             'Batch Idx: (%d/%d) | Loss: %.3f | Acc: %.3f%% (%d/%d)' %
-            (batch_idx, len(trainloader), train_loss/(batch_idx+1), 100.*correct/total, correct, total)
+            (batch_idx, len(trainloader), train_loss/(batch_idx+1), acc, correct, total)
         )
 
+    return acc
 
 def eval(epoch, dataloader, checkpoint=False):
     global best_acc
@@ -531,9 +537,9 @@ def eval(epoch, dataloader, checkpoint=False):
                 (batch_idx, len(dataloader), eval_loss/(batch_idx+1), 100.*correct/total, correct, total)
             )
 
+    acc = 100.*correct/total
     # Save checkpoint.
     if checkpoint:
-        acc = 100.*correct/total
         if acc > best_acc:
             state = {
                 'model': model.state_dict(),
@@ -545,17 +551,27 @@ def eval(epoch, dataloader, checkpoint=False):
             torch.save(state, './checkpoint/ckpt.pth')
             best_acc = acc
 
-        return acc
+    return acc
+
+import wandb
+# highlight-start
+run = wandb.init(
+    # Set the project where this run will be logged
+    project="sSSM_cifar",
+    # Track hyperparameters and run metadata
+    config=args,
+)
 
 pbar = tqdm(range(start_epoch, args.epochs))
 for epoch in pbar:
-    train()
+    train_acc = train()
     val_acc = eval(epoch, valloader, checkpoint=True)
-    eval(epoch, testloader)
+    test_acc = eval(epoch, testloader)
     scheduler.step()
-    if epoch == 0:
-        pbar.set_description('Epoch: %d' % (epoch))
-    else:
-        pbar.set_description('Epoch: %d | Val acc: %1.3f' % (epoch, val_acc))
+
+    pbar.set_description('Epoch: %d | Val acc: %1.3f' % (epoch, val_acc))
+    wandb.log({"train_acc": train_acc, "val_acc": val_acc, "test_acc": test_acc})
     # print(f"Epoch {epoch} learning rate: {scheduler.get_last_lr()}")
+
+    
 

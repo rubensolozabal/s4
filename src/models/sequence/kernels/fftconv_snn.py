@@ -108,7 +108,7 @@ class FFTConv_snn(SequenceModule):
             #         + F.pad(k1[..., :1], (0, l_kernel+L-1))
 
         # Kernel dropout
-        k = self.drop_kernel(k)
+        # k = self.drop_kernel(k)
 
         # In principle, we could pad to l_kernel+L-1 instead of l_kernel+L, but we choose the latter for
         # equational simplicity. Additionally, we have not experimented to compare the efficiency of the two.
@@ -136,7 +136,7 @@ class FFTConv_snn(SequenceModule):
         else:
             y = rearrange(y, 'b c h l -> b (c h) l')
 
-        y = self.drop(y)  # DropoutNd better with transposed=True
+        # y = self.drop(y)  # DropoutNd better with transposed=True
 
         if not self.transposed: y = y.transpose(-1, -2)
         y = self.activation(y)
