@@ -1831,10 +1831,11 @@ class S4Block(nn.Module):
         self.bottleneck = bottleneck
 
         if bottleneck is not None:
-            self.d_model = self.d_model // bottleneck
+            # self.d_model = self.d_model // bottleneck r.s.o
             self.input_linear = LinearActivation(
                 self.d_model,
-                self.d_model,
+                self.d_model // bottleneck, # r.s.o
+                # self.d_model,
                 transposed=False,
                 activation=None,
                 activate=False,
@@ -1848,20 +1849,29 @@ class S4Block(nn.Module):
                 activation=gate_act,
                 activate=True,
             )
-            if self.layer.d_output != self.d_model * gate:
-                self.output_gate = LinearActivation(
-                    self.d_model*self.channels,
-                    self.d_model * gate,
-                    transposed=False,
-                    activation=None,
-                    activate=False,
-                )
+            # if self.layer.d_output != self.d_model * gate:
+                # self.output_gate = LinearActivation(
+                #     self.d_model*self.channels,
+                #     self.d_model * gate,
+                #     transposed=False,
+                #     activation=None,
+                #     activate=False,
+                # )
+
+            self.output_gate = LinearActivation(
+                # self.d_model*self.channels,
+                self.d_model // bottleneck if bottleneck is not None else self.d_model,
+                self.d_model * gate,
+                transposed=False,
+                activation=None,
+                activate=False,
+            )
 
         # Currently this module only uses FFTConv for its inner module
         # But the options here are all agnostic to the inner block
         # If other types of inner layers are desired, it is easy
         # to add an option to swap a different module in
-        self.layer = FFTConv(d_model, transposed=False, dropout=dropout, tie_dropout=tie_dropout, **layer_args)
+        self.layer = FFTConv(self.d_model // bottleneck if bottleneck is not None else self.d_model, transposed=False, dropout=dropout, tie_dropout=tie_dropout, **layer_args)
 
         # Pointwise operations
 

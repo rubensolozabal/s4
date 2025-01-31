@@ -18,14 +18,24 @@
             "name": "singleSSM",
             "type": "debugpy",
             "request": "launch",
-            "program": "example_SNN_v3_sSSM.py",
+            "program": "example_SNN_v6.py",
             "console": "integratedTerminal",
             "args": [
-                "--n_layers=4", "--dataset=mnist"
+                "--n_layers=4", "--dataset=cifar10",
             ]
         },
         {
             "name": "lra",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "experiment=lra/s4-cifar"
+            ]
+        },
+        {
+            "name": "lra_snn",
             "type": "debugpy",
             "request": "launch",
             "program": "train.py",

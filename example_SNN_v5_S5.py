@@ -314,7 +314,7 @@ class S4Model(nn.Module):
         for _ in range(n_layers):
             self.s4_layers.append(
                 # S5Block(d_model, d_model, False)
-                S5Block(d_model, d_model, bidir= True, block_count =1, liquid = False, degree = 1, ff_mult = 1., glu = True,
+                S5Block(d_model, 3*d_model, bidir= True, block_count =3, liquid = False, degree = 1, ff_mult = 1., glu = True,
                  ff_dropout = dropout, attn_dropout = dropout)
                 # S4D(d_model, dropout=dropout, drop_kernel=drop_kernel, transposed=True, lr=min(0.001, args.lr))
             )

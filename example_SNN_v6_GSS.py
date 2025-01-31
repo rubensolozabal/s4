@@ -35,7 +35,6 @@ import os
 import argparse
 
 from models.s4.s4 import S4Block as S4  # Can use full version instead of minimal S4D standalone below
-from models.s4.s4d_test import S4D
 from tqdm.auto import tqdm
 
 # Dropout broke in PyTorch 1.11
@@ -310,9 +309,17 @@ class S4Model(nn.Module):
         self.norms = nn.ModuleList()
         self.dropouts = nn.ModuleList()
         for _ in range(n_layers):
-            self.s4_layers.append(
-                S4D(d_model, dropout=dropout, transposed=True, lr=min(0.001, args.lr))
-            )
+            # self.s4_layers.append(
+            #     S4(d_model, dropout=dropout, transposed=True, lr=min(0.001, args.lr))
+            # )
+            self.s4_layers.append(S4(d_model, dropout=dropout, transposed=True, lr=min(0.001, args.lr),
+                    # gate=1,                   # Multiplicative gating layer that also expands dimension by factor of 4
+                    # bottleneck=1,             # Reduce dimension of SSM by factor of 4
+                    init='diag-rand',         # Randomly initialize A
+                    # dt_min=1.0, dt_max=1.0,   # Initialize dt to 1.0
+                    # lr={'dt': 0.0, 'B': 0.0, 'A_real': min(0.001, args.lr), 'A_imag': min(0.001, args.lr), 'C': min(0.001, args.lr)}, # Freeze B and dt
+                    # imag_transform='exp',     # Parameterize imag part of A under exp transform
+                    ))
             # self.norms.append(nn.LayerNorm(d_model))
             self.norms.append(nn.BatchNorm1d(length))
             self.dropouts.append(dropout_fn(dropout))

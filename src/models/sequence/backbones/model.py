@@ -50,7 +50,7 @@ class SequenceModel(SequenceModule):
         norm: Optional[Mapping] = None,
         pool: Optional[Mapping] = None,
         track_norms: bool = True,
-        track_spikerates: bool = True,
+        track_spikerates: bool = False,
         dropinp: int = 0.0,
     ):
         super().__init__()
