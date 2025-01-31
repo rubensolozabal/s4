@@ -25,17 +25,27 @@
             ]
         },
         {
-            "name": "lra",
+            "name": "lra_s4d",
             "type": "debugpy",
             "request": "launch",
             "program": "train.py",
             "console": "integratedTerminal",
             "args": [
-                "experiment=lra/s4-cifar"
+                "experiment=lra/s4d-cifar"
             ]
         },
         {
-            "name": "lra_snn",
+            "name": "lra_gss",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "experiment=lra/gss-cifar"
+            ]
+        },
+        {
+            "name": "lra_s4d_snn",
             "type": "debugpy",
             "request": "launch",
             "program": "train.py",

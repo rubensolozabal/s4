@@ -65,10 +65,10 @@ class S4Block(SequenceModule):
         self.bottleneck = bottleneck
 
         if bottleneck is not None:
-            self.d_model = self.d_model // bottleneck
+            # self.d_model = self.d_model // bottleneck
             self.input_linear = LinearActivation(
                 self.d_model,
-                self.d_model,
+                self.d_model // bottleneck,
                 transposed=False,
                 initializer=initializer,
                 activation=None,
@@ -86,9 +86,10 @@ class S4Block(SequenceModule):
                 activate=True,
                 weight_norm=weight_norm,
             )
-            if self.layer.d_output != self.d_model * gate:
+            
+            if bottleneck is not None:
                 self.output_gate = LinearActivation(
-                    self.d_model*self.channels,
+                    self.d_model // bottleneck,
                     self.d_model * gate,
                     transposed=False,
                     initializer=initializer,
@@ -96,6 +97,7 @@ class S4Block(SequenceModule):
                     activate=False,
                     weight_norm=weight_norm,
                 )
+  
 
         # Currently this module only uses FFTConv for its inner module
         # But the options here are all agnostic to the inner block
@@ -106,7 +108,7 @@ class S4Block(SequenceModule):
         layer_cfg['_name_'] = layer
         layer_cfg['transposed'] = False
         layer_cfg['dropout'] = dropout
-        self.layer = utils.instantiate(registry.layer, layer_cfg, d_model)
+        self.layer = utils.instantiate(registry.layer, layer_cfg, self.d_model // bottleneck if bottleneck is not None else self.d_model)
 
         # Pointwise operations
         # Activation after layer
