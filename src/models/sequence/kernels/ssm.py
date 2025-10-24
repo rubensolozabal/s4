@@ -107,6 +107,9 @@ def param_transform(param, transform='none'):
     else: raise NotImplementedError
     return p
 
+from safari.Frame_Builder import *
+from safari.SSM_Builder import *
+from safari.SSM_Solver import *
 
 class SSMKernel(Kernel):
     """Parent class for different SSM parameterizations.
@@ -154,6 +157,7 @@ class SSMKernel(Kernel):
         """Returns (dense, real) (A, B, C) parameters for init options."""
         # Generate A, B
         A, B = hippo.transition(self.init, self.N)
+
         A = torch.as_tensor(A, dtype=self.dtype)
         B = torch.as_tensor(B, dtype=self.dtype)[:, 0]
         B = repeat(B, 'n -> v n', v=self.n_ssm).clone().contiguous()
@@ -167,6 +171,34 @@ class SSMKernel(Kernel):
             C = torch.randn(self.channels, self.H, self.N, dtype=self.dtype)
 
         return A, B, C
+
+    def init_ssm_frame(self):
+        """Returns (dense, real) (A, B, C) parameters from a frame object."""
+
+        myFrame = Fobj(fname='legendre', params={'N':self.N, 'L':100000})
+        safari_legs = SSM(  Fobjgiven=myFrame, params={ 'meas':'scaled'})
+
+        # hippo_legs = SSM(params={'N':self.N, 'fname':'legendre', 'meas':'scaled'})
+
+        A, B = safari_legs.A, safari_legs.B
+        # A, B = hippo_legs.A, hippo_legs.B   
+
+        A = -A # Negate A to match S4 convention
+
+        A = torch.as_tensor(A, dtype=self.dtype)
+        B = torch.as_tensor(B, dtype=self.dtype)[:, 0]
+        B = repeat(B, 'n -> v n', v=self.n_ssm).clone().contiguous()
+        A = repeat(A, 'n m -> v n m', v=self.n_ssm).clone().contiguous()
+
+        # Generate C
+        if self.deterministic:
+            C = torch.zeros(self.channels, self.H, self.N, dtype=self.dtype)
+            C[..., :1] = 1.0
+        else:
+            C = torch.randn(self.channels, self.H, self.N, dtype=self.dtype)
+
+        return A, B, C
+
 
     def init_ssm_dplr(self):
         """Returns DPLR (A, P, B, C) parameters for init options."""
@@ -434,6 +466,22 @@ class SSMKernelReal(SSMKernelDense):
         # SSMKernelDense is designed to work with complex
         A, B, C = A.to(torch.cfloat), B.to(torch.cfloat), C.to(torch.cfloat)
         self.register_params(A, B, C, inv_dt)
+
+
+
+class SSMKernelFrame(SSMKernelDense):
+    
+    def __init__(self, **kwargs):
+        super().__init__(comp=False, **kwargs)
+
+        inv_dt = self.init_dt()
+        A, B, C = self.init_ssm_frame()
+
+        # SSMKernelDense is designed to work with complex
+        A, B, C = A.to(torch.cfloat), B.to(torch.cfloat), C.to(torch.cfloat)
+        self.register_params(A, B, C, inv_dt)
+
+
 
 
 class SSMKernelDiag(SSMKernel):

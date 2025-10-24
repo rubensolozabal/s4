@@ -1,5 +1,5 @@
 from .kernel import ConvKernel, EMAKernel
-from .ssm import SSMKernelDense, SSMKernelReal, SSMKernelDiag, SSMKernelDPLR
+from .ssm import SSMKernelDense, SSMKernelReal, SSMKernelDiag, SSMKernelDPLR, SSMKernelFrame
 
 registry = {
     'conv': ConvKernel,
@@ -12,4 +12,5 @@ registry = {
     's4': SSMKernelDPLR,
     'nplr': SSMKernelDPLR,
     'dplr': SSMKernelDPLR,
+    'frame': SSMKernelFrame,
 }
