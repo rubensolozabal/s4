@@ -657,7 +657,7 @@ def create_trainer(config):
 
 
     # Configure ddp automatically
-    if config.trainer.accelerator == 'gpu' and config.trainer.devices > 1:
+    if config.trainer.accelerator == 'gpu' and len(config.trainer.devices) > 1:
         print("ddp automatically configured, more than 1 gpu used!")
         config.trainer.strategy = "ddp"
 
