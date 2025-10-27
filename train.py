@@ -1,8 +1,10 @@
 import copy
 import os
 import random
+import sys
 import time
 from functools import partial, wraps
+from pathlib import Path
 from typing import Callable, List, Optional
 
 import hydra
@@ -16,6 +18,13 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
 from tqdm.auto import tqdm
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+SRC_ROOT = PROJECT_ROOT / "src"
+for path_candidate in (PROJECT_ROOT, SRC_ROOT):
+    resolved = str(path_candidate)
+    if resolved not in sys.path:
+        sys.path.insert(0, resolved)
 
 import src.models.nn.utils as U
 import src.utils as utils
