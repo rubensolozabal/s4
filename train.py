@@ -19,12 +19,10 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
 from tqdm.auto import tqdm
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-SRC_ROOT = PROJECT_ROOT / "src"
-for path_candidate in (PROJECT_ROOT, SRC_ROOT):
-    resolved = str(path_candidate)
-    if resolved not in sys.path:
-        sys.path.insert(0, resolved)
+import torch
+torch.cuda.set_device(0)  # Use GPU 1 (index starts from 0)
+print(torch.cuda.current_device())  # Confirm which device is active
+
 
 import src.models.nn.utils as U
 import src.utils as utils
