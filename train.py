@@ -19,10 +19,6 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
 from tqdm.auto import tqdm
 
-import torch
-torch.cuda.set_device(0)  # Use GPU 1 (index starts from 0)
-print(torch.cuda.current_device())  # Confirm which device is active
-
 
 import src.models.nn.utils as U
 import src.utils as utils

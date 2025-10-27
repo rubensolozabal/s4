@@ -24,6 +24,9 @@ optimizer:
   weight_decay: 0.05
 
 trainer:
+  accelerator: gpu
+  strategy: auto
+  devices: [1]
   max_epochs: 200
 
 scheduler:
@@ -34,4 +37,4 @@ train:
   seed: 2222
 
 wandb:
-  name: s4frame-cifar
+  name: cifar/s4frame-cifar
