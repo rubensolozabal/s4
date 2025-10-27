@@ -31,3 +31,6 @@ scheduler:
 
 train:
   seed: 2222
+
+wandb:
+  name: s4-cifar
