@@ -31,6 +31,9 @@ optimizer:
   weight_decay: 0.05
 
 trainer:
+  accelerator: gpu
+  strategy: auto
+  devices: [3]
   max_epochs: 200
 
 scheduler:
@@ -39,3 +42,6 @@ scheduler:
 
 train:
   seed: 2222
+
+wandb:
+  name: lra/s4-cifar

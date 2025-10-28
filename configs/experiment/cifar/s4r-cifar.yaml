@@ -7,7 +7,7 @@ defaults:
 model:
   dropout: 0.1
   tie_dropout: true
-  n_layers: 1
+  n_layers: 6
   d_model: 512
   prenorm: false
   layer:
@@ -26,7 +26,7 @@ optimizer:
 trainer:
   accelerator: gpu
   strategy: auto
-  devices: [1]
+  devices: [3]
   max_epochs: 200
 
 scheduler:
