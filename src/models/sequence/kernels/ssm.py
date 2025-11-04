@@ -176,7 +176,7 @@ class SSMKernel(Kernel):
     def init_ssm_frame(self):
         """Returns (dense, real) (A, B, C) parameters from a frame object."""
 
-        if self.init == "legs":
+        if self.init == "hippo_legs":
 
             # Hippo Legs
             hippo_legs = SSM(params={'N':self.N, 'fname':'legendre', 'meas':'scaled'})
@@ -405,22 +405,26 @@ class SSMKernelDense(SSMKernel):
         super().__init__(**kwargs)
         self.comp = comp
 
+
+        #######################################################################
+        # r.s.o uncomment and move
+
         # Initialize dt, A, B, C
-        inv_dt = self.init_dt()
-        A, P, B, C = self.init_ssm_dplr()
+        # inv_dt = self.init_dt()
+        # A, P, B, C = self.init_ssm_dplr()
 
-        # Materialize dense A, B, C
-        if self.comp:
-            # Special case for companion matrix parameterization
-            A = torch.zeros_like(_conj(A))
-        else:
-            A = torch.diag_embed(_conj(A)) \
-                - contract('r s p, r s q -> s p q', _conj(P), _conj(P).conj())
-        self.N *= 2  # Double N again since no conjugate symmetry
-        B, C = _conj(B), _conj(C)
-
-
-        self.register_params(A, B, C, inv_dt)
+        # # Materialize dense A, B, C
+        # if self.comp:
+        #     # Special case for companion matrix parameterization
+        #     A = torch.zeros_like(_conj(A))
+        # else:
+        #     A = torch.diag_embed(_conj(A)) \
+        #         - contract('r s p, r s q -> s p q', _conj(P), _conj(P).conj())
+        # self.N *= 2  # Double N again since no conjugate symmetry
+        # B, C = _conj(B), _conj(C)
+        
+        # self.register_params(A, B, C, inv_dt)
+        ######################################################################
 
     def register_params(self, A, B, C, inv_dt):
         assert self.N == A.size(-1)
