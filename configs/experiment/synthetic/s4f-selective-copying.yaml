@@ -24,6 +24,9 @@ model:
     dt_max: 0.1
     d_state: 128
     lr: 0.0001
+    # My args
+    mode: frame
+    init: safari_legs
 
 
 loader:
@@ -43,4 +46,4 @@ train:
   remove_test_loader_in_eval: true
 
 wandb:
-  name: synthetic/s4-selective-copying
+  name: synthetic/s4f-selective-copying

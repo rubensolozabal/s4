@@ -110,6 +110,7 @@ def param_transform(param, transform='none'):
 from safari.Frame_Builder import *
 from safari.SSM_Builder import *
 from safari.SSM_Solver import *
+from safari import Additional_Frames as addf
 
 class SSMKernel(Kernel):
     """Parent class for different SSM parameterizations.
@@ -175,13 +176,61 @@ class SSMKernel(Kernel):
     def init_ssm_frame(self):
         """Returns (dense, real) (A, B, C) parameters from a frame object."""
 
-        myFrame = Fobj(fname='legendre', params={'N':self.N, 'L':100000})
-        safari_legs = SSM(  Fobjgiven=myFrame, params={ 'meas':'scaled'})
+        if self.init == "legs":
 
-        # hippo_legs = SSM(params={'N':self.N, 'fname':'legendre', 'meas':'scaled'})
+            # Hippo Legs
+            hippo_legs = SSM(params={'N':self.N, 'fname':'legendre', 'meas':'scaled'})
+            A, B = hippo_legs.A, hippo_legs.B
 
-        A, B = safari_legs.A, safari_legs.B
-        # A, B = hippo_legs.A, hippo_legs.B   
+        elif self.init == "safari_legs":
+
+            # Safari Legs
+            myFrame = Fobj(fname='legendre', params={'N':self.N, 'L':100000})
+            safari_legs = SSM(  Fobjgiven=myFrame, params={ 'meas':'scaled'})
+            A, B = safari_legs.A, safari_legs.B
+
+        elif self.init == "safari_morlets":
+
+            # Safari Morlet
+            F_morlet = addf.morlet_frame(fmin=1, fmax=3, fstep=1, L=131072, redundancy=1)
+            frame_morlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_morlet.make_frame(F_morlet)
+
+            MorletS = SSM(Fobjgiven=frame_morlet, params={'fname':'morlet',  'meas': 'scaled'})
+            A, B = MorletS.A, MorletS.B
+
+        elif self.init == "safari_morlett":
+
+            # Safari Morlet
+            F_morlet = addf.morlet_frame(fmin=1, fmax=3, fstep=1, L=131072, redundancy=1)
+            frame_morlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_morlet.make_frame(F_morlet)
+
+            MorletT = SSM(Fobjgiven=frame_morlet, params={'fname':'morlet',  'meas': 'translated'})
+            A, B = MorletT.A, MorletT.B
+
+        elif self.init == "safari_gabors":
+
+            # Safari Gabor
+            F_gabor = addf.gabor_frame(self.N, 131072) 
+            frame_gabor= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_gabor.make_frame(F_gabor)
+
+            GabS = SSM(Fobjgiven=frame_gabor, params={'fname':'gabor',  'meas': 'scaled'})
+            A, B = GabS.A, GabS.B
+
+        elif self.init == "safari_gabort":
+
+            # Safari Gabor
+            F_gabor = addf.gabor_frame(self.N, 131072) 
+            frame_gabor= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_gabor.make_frame(F_gabor)
+
+            GabT = SSM(Fobjgiven=frame_gabor, params={'fname':'gabor',  'meas': 'translated'})
+            A, B = GabT.A, GabT.B   
+
+        else:
+            raise NotImplementedError(f"Frame initialization {self.init} not implemented.")
 
         A = -A # Negate A to match S4 convention
 
