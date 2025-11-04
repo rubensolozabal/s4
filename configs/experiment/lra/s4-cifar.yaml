@@ -33,7 +33,7 @@ optimizer:
 trainer:
   accelerator: gpu
   strategy: auto
-  devices: [3]
+  devices: [0]
   max_epochs: 200
 
 scheduler:

@@ -26,7 +26,7 @@ model:
     lr: 0.0001
     # My args
     mode: frame
-    init: safari_legs
+    init: safari_gabors # Options: hippo_legs, safari_legs, safari_gabors
 
 
 loader:
@@ -46,4 +46,4 @@ train:
   remove_test_loader_in_eval: true
 
 wandb:
-  name: synthetic/s4f-selective-copying
+  name: synthetic/s4f-selective-copying_safari-gabors

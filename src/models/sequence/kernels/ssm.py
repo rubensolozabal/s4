@@ -219,6 +219,9 @@ class SSMKernel(Kernel):
             GabS = SSM(Fobjgiven=frame_gabor, params={'fname':'gabor',  'meas': 'scaled'})
             A, B = GabS.A, GabS.B
 
+            # Update N
+            self.N = A.shape[0]
+
         elif self.init == "safari_gabort":
 
             # Safari Gabor
