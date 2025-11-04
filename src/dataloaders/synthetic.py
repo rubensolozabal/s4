@@ -53,6 +53,7 @@ class Copying(SequenceDataset):
             samples=self.n_train,
             lag=self.lag,
             variable=self.variable,
+            variable_length=self.variable_length,
             one_hot=self.one_hot,
             reverse=self.reverse,
         )
@@ -63,6 +64,7 @@ class Copying(SequenceDataset):
             samples=self.n_eval,
             lag=self.lag,
             variable=self.variable,
+            variable_length=self.variable_length,
             one_hot=self.one_hot,
             reverse=self.reverse,
         )

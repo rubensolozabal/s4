@@ -91,10 +91,23 @@ class CopyingEvalDataset(torch.utils.data.TensorDataset):
         self.M = M
         self.A = A
         self.samples = samples
+        self.variable = variable
+        self.variable_length = variable_length
+        self.one_hot = one_hot
+        self.reverse = reverse
         if lag:
             all_x, all_y = torch_copying_lag_data(self.L, self.M, self.A, batch_shape=(self.samples,))
         else:
-            all_x, all_y = torch_copying_data(self.L, self.M, self.A, batch_shape=(self.samples,), variable=variable, variable_length=False, one_hot=one_hot, reverse=reverse)
+            all_x, all_y = torch_copying_data(
+                self.L,
+                self.M,
+                self.A,
+                batch_shape=(self.samples,),
+                variable=self.variable,
+                variable_length=self.variable_length,
+                one_hot=self.one_hot,
+                reverse=self.reverse,
+            )
         super().__init__(all_x, all_y)
 
 def copying_static_dataset(L, M, A, variable, samples):

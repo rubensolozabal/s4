@@ -37,3 +37,4 @@ trainer:
 
 train:
   seed: 1112
+  remove_test_loader_in_eval: true

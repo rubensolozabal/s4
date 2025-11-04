@@ -1,0 +1,13 @@
+_name_: copying
+l_noise: 4096        # number of noise tokens between markers
+l_memorize: 16       # number of tokens to memorize
+n_tokens: 16         # alphabet size (including marker token)
+variable: true       # enable selective copying; tokens appear at random positions
+variable_length: false
+one_hot: false
+reverse: false
+static: false        # keep sampling new sequences each epoch
+n_train: 10000
+n_eval: 1000
+lag: false
+__l_max: null
