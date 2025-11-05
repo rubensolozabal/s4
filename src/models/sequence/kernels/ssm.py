@@ -199,6 +199,9 @@ class SSMKernel(Kernel):
             MorletS = SSM(Fobjgiven=frame_morlet, params={'fname':'morlet',  'meas': 'scaled'})
             A, B = MorletS.A, MorletS.B
 
+            # Update N
+            self.N = A.shape[0]
+
         elif self.init == "safari_morlett":
 
             # Safari Morlet
@@ -208,6 +211,9 @@ class SSMKernel(Kernel):
 
             MorletT = SSM(Fobjgiven=frame_morlet, params={'fname':'morlet',  'meas': 'translated'})
             A, B = MorletT.A, MorletT.B
+            
+            # Update N
+            self.N = A.shape[0]
 
         elif self.init == "safari_gabors":
 
@@ -231,6 +237,9 @@ class SSMKernel(Kernel):
 
             GabT = SSM(Fobjgiven=frame_gabor, params={'fname':'gabor',  'meas': 'translated'})
             A, B = GabT.A, GabT.B   
+            
+            # Update N
+            self.N = A.shape[0]
 
         else:
             raise NotImplementedError(f"Frame initialization {self.init} not implemented.")
