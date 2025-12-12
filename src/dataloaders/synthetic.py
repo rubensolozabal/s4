@@ -156,6 +156,73 @@ class Reconstruct(SequenceDataset):
         raise NotImplementedError
 
 
+class LocalWindowCopying(SequenceDataset):
+    _name_ = "local_window_copying"
+
+    @property
+    def init_defaults(self):
+        return {
+            "l_seq": 4096,
+            "l_window_min": 16,
+            "l_window_max": 128,
+            "dt": 0.001,
+            "freq": 2.0,
+            "query_length": 1,
+            "static": False,
+            "n_train": 10000,
+            "n_eval": 1000,
+        }
+
+    @property
+    def d_input(self):
+        # signal channel + marker channel
+        return 2
+
+    @property
+    def d_output(self):
+        # Reconstruct up to the longest possible window
+        return self.l_window_max
+
+    @property
+    def l_output(self):
+        # Use final query step
+        return 0
+
+    def setup(self):
+        from .datasets.local_window_copying import (
+            LocalWindowCopyingEvalDataset,
+            LocalWindowCopyingTrainDataset,
+        )
+
+        if self.static:
+            train_cls = LocalWindowCopyingEvalDataset
+        else:
+            train_cls = LocalWindowCopyingTrainDataset
+
+        self.dataset_train = train_cls(
+            samples=self.n_train,
+            l_seq=self.l_seq,
+            l_window_min=self.l_window_min,
+            l_window_max=self.l_window_max,
+            dt=self.dt,
+            freq=self.freq,
+            query_length=self.query_length,
+        )
+        self.dataset_val = LocalWindowCopyingEvalDataset(
+            samples=self.n_eval,
+            l_seq=self.l_seq,
+            l_window_min=self.l_window_min,
+            l_window_max=self.l_window_max,
+            dt=self.dt,
+            freq=self.freq,
+            query_length=self.query_length,
+        )
+        self.dataset_test = None
+
+    def __str__(self):
+        return f"{self._name_}{self.l_seq}"
+
+
 class Delay(SequenceDataset):
     _name_ = "delay"
 

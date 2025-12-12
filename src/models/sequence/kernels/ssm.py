@@ -107,10 +107,10 @@ def param_transform(param, transform='none'):
     else: raise NotImplementedError
     return p
 
-from safari.Frame_Builder import *
-from safari.SSM_Builder import *
-from safari.SSM_Solver import *
-from safari import Additional_Frames as addf
+from safariWave.Frame_Builder import *
+from safariWave.SSM_Builder import *
+from safariWave.SSM_Solver import *
+from safariWave import Additional_Frames as addf
 
 class SSMKernel(Kernel):
     """Parent class for different SSM parameterizations.
