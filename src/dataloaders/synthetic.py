@@ -167,7 +167,9 @@ class LocalWindowCopying(SequenceDataset):
             "l_window_max": 128,
             "dt": 0.001,
             "freq": 2.0,
-            "query_length": 1,
+            "n_windows_min": 3,
+            "n_windows_max": 10,
+            "query_length": 10,
             "static": False,
             "n_train": 10000,
             "n_eval": 1000,
@@ -185,8 +187,8 @@ class LocalWindowCopying(SequenceDataset):
 
     @property
     def l_output(self):
-        # Use final query step
-        return 0
+        # Use final query steps (one per replay request)
+        return self.query_length
 
     def setup(self):
         from .datasets.local_window_copying import (
@@ -206,6 +208,8 @@ class LocalWindowCopying(SequenceDataset):
             l_window_max=self.l_window_max,
             dt=self.dt,
             freq=self.freq,
+            n_windows_min=self.n_windows_min,
+            n_windows_max=self.n_windows_max,
             query_length=self.query_length,
         )
         self.dataset_val = LocalWindowCopyingEvalDataset(
@@ -215,6 +219,8 @@ class LocalWindowCopying(SequenceDataset):
             l_window_max=self.l_window_max,
             dt=self.dt,
             freq=self.freq,
+            n_windows_min=self.n_windows_min,
+            n_windows_max=self.n_windows_max,
             query_length=self.query_length,
         )
         self.dataset_test = None

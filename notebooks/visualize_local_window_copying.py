@@ -10,7 +10,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import yaml
+from omegaconf import OmegaConf
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 S4_ROOT = PROJECT_ROOT / "S4"
@@ -27,20 +27,16 @@ DEFAULT_EXPERIMENT = S4_ROOT / "configs" / "experiment" / "synthetic" / "s4-loca
 DEFAULT_DATASET = S4_ROOT / "configs" / "dataset" / "local_window_copying.yaml"
 
 
-def load_yaml(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
-        data = yaml.safe_load(handle)
-    if not isinstance(data, dict):
-        raise ValueError(f"Expected mapping in {path}, got {type(data).__name__}")
-    return data
-
-
 def load_dataset_config(experiment_path: Path, dataset_path: Path) -> dict[str, Any]:
-    dataset_cfg = load_yaml(dataset_path).copy()
+    # Minimal resolver registry for standalone usage outside Hydra.
+    if not OmegaConf.has_resolver("eval"):
+        OmegaConf.register_new_resolver("eval", lambda expr: eval(expr))  # noqa: S307
+
+    dataset_cfg = OmegaConf.load(dataset_path)
     dataset_cfg.pop("_name_", None)
-    experiment_cfg = load_yaml(experiment_path)
-    dataset_cfg.update(experiment_cfg.get("dataset", {}))
-    return dataset_cfg
+    experiment_cfg = OmegaConf.load(experiment_path)
+    merged = OmegaConf.merge(dataset_cfg, experiment_cfg.get("dataset", {}))
+    return OmegaConf.to_container(merged, resolve=True)  # type: ignore[return-value]
 
 
 def sample_sequence(config: dict[str, Any], seed: int | None = None) -> tuple[torch.Tensor, torch.Tensor]:
@@ -56,18 +52,44 @@ def sample_sequence(config: dict[str, Any], seed: int | None = None) -> tuple[to
         l_window_max=int(config["l_window_max"]),
         dt=float(config["dt"]),
         freq=float(config["freq"]),
+        n_windows_min=int(config["n_windows_min"]),
+        n_windows_max=int(config["n_windows_max"]),
         query_length=int(config["query_length"]),
     )
     return x, y
 
 
-def extract_window(markers: np.ndarray) -> tuple[int, int]:
-    window_idx = np.flatnonzero(markers > 0)
-    if window_idx.size == 0:
-        raise ValueError("No positive markers found for window region.")
-    start = int(window_idx.min())
-    end = int(window_idx.max()) + 1
-    return start, end
+def extract_windows(markers: np.ndarray, query_length: int) -> list[tuple[int, int, int]]:
+    """
+    Return (window_id, start, end) tuples using boundary markers:
+    +id at window start, -id at window end, 0 inside.
+    """
+    sequence_markers = markers if query_length == 0 else markers[:-query_length]
+    window_ids = sorted({int(val) for val in np.unique(sequence_markers) if val > 0})
+    windows: list[tuple[int, int, int]] = []
+    for window_id in window_ids:
+        starts = np.flatnonzero(sequence_markers == window_id)
+        if starts.size == 0:
+            continue
+        start_idx = int(starts.min())
+        end_candidates = np.flatnonzero((sequence_markers == -window_id) & (np.arange(sequence_markers.size) > start_idx))
+        if end_candidates.size == 0:
+            continue
+        end_idx = int(end_candidates.min())
+        windows.append((window_id, start_idx, end_idx + 1))
+    if not windows:
+        raise ValueError("No window boundary markers found.")
+    return windows
+
+
+def extract_queries(markers: np.ndarray, query_length: int) -> list[tuple[int, int]]:
+    """Return (offset, window_id) for each replay query encoded by negative markers."""
+    query_region = markers[-query_length:]
+    queries: list[tuple[int, int]] = []
+    for offset, marker in enumerate(query_region):
+        if marker < 0:
+            queries.append((offset, int(abs(marker))))
+    return queries
 
 
 def print_summary(inputs: torch.Tensor, targets: torch.Tensor, config: dict[str, Any]) -> None:
@@ -75,17 +97,25 @@ def print_summary(inputs: torch.Tensor, targets: torch.Tensor, config: dict[str,
     markers = inputs[:, 1]
     total_length = signal.numel()
     query_length = int(config["query_length"])
-    window_start, window_end = extract_window(markers.numpy())
-    window_len = window_end - window_start
+    markers_np = markers.numpy()
+    windows = extract_windows(markers_np, query_length)
+    queries = extract_queries(markers_np, query_length)
+    window_desc = ", ".join(f"{wid}:[{start},{end})" for wid, start, end in windows)
+    query_order = ", ".join(f"{q_idx + 1}→w{wid}" for q_idx, (_, wid) in enumerate(queries))
 
     print(f"Sequence length: {total_length} (signal={config['l_seq']} + query={query_length})")
-    print(f"Window start: {window_start}, length: {window_len} (max {config['l_window_max']})")
+    print(f"Windows ({len(windows)}): {window_desc}")
     print(f"Query region: [{total_length - query_length}:{total_length})")
+    print(f"Replay order ({len(queries)} queries): {query_order or 'none'}")
 
-    source_segment = signal[window_start:window_end]
-    target_segment = targets[:window_len]
-    exact_match = torch.allclose(source_segment, target_segment)
-    print(f"Sanity check: source window matches target -> {exact_match}")
+    if queries:
+        first_query_idx, window_id = queries[0]
+        _, start, end = next(item for item in windows if item[0] == window_id)
+        window_len = end - start
+        source_segment = signal[start:end]
+        target_segment = targets[first_query_idx, :window_len]
+        exact_match = torch.allclose(source_segment, target_segment)
+        print(f"Sanity check (first query -> window {window_id}): match={exact_match}")
 
 
 def plot_example(inputs: torch.Tensor, targets: torch.Tensor, config: dict[str, Any]) -> plt.Figure:
@@ -94,35 +124,64 @@ def plot_example(inputs: torch.Tensor, targets: torch.Tensor, config: dict[str, 
     query_length = int(config["query_length"])
     time = np.arange(signal.shape[0])
 
-    window_start, window_end = extract_window(markers)
-    window_len = window_end - window_start
+    windows = extract_windows(markers, query_length)
+    window_lookup = {wid: (start, end) for wid, start, end in windows}
+    queries = extract_queries(markers, query_length)
     query_start = signal.shape[0] - query_length
 
     fig, axes = plt.subplots(2, 1, figsize=(12, 6), constrained_layout=True, sharex=False)
 
     # Input signal with markers
     axes[0].plot(time, signal, color="#1f78b4", linewidth=1.2, label="Signal")
-    axes[0].step(time, markers, where="mid", color="#d95f02", alpha=0.7, label="Markers (+window, -query)")
-    axes[0].axvspan(window_start, window_end - 1, color="#cce5ff", alpha=0.6, label="Window region")
+    axes[0].step(time, markers, where="mid", color="#d95f02", alpha=0.7, label="Markers (+start id, -end/query id)")
+    for i, (window_id, start, end) in enumerate(windows):
+        axes[0].axvspan(
+            start,
+            end - 1,
+            color="#cce5ff",
+            alpha=0.5,
+            label="Window regions" if i == 0 else None,
+        )
     axes[0].axvspan(query_start - 0.5, signal.shape[0] - 0.5, color="#f5c6cb", alpha=0.35, label="Query steps")
+    for i, (offset, window_id) in enumerate(queries):
+        axes[0].axvline(query_start + offset, color="#e31a1c", linestyle="--", alpha=0.8, label="Replay prompts" if i == 0 else None)
+        axes[0].text(
+            query_start + offset + 0.1,
+            max(1.0, np.max(np.abs(markers))) * 0.8,
+            f"w{window_id}",
+            fontsize=8,
+            color="#e31a1c",
+        )
     axes[0].set_title("Local window copying input")
     axes[0].set_xlabel("Time step")
     axes[0].set_ylabel("Value / marker")
     axes[0].legend()
 
     # Target vs source window
-    target_np = targets.cpu().numpy()
-    axes[1].plot(np.arange(target_np.shape[0]), target_np, marker="o", color="#1b9e77", label="Target (padded)")
-    axes[1].plot(
-        np.arange(window_len),
-        signal[window_start:window_end],
-        marker="x",
-        linestyle="--",
-        color="#7570b3",
-        label="Source window",
-    )
-    axes[1].set_xlim(-0.5, max(target_np.shape[0], window_len) + 1)
-    axes[1].set_title("Window reconstruction target")
+    colors = plt.cm.tab10.colors
+    for idx, (offset, window_id) in enumerate(queries):
+        start, end = window_lookup[window_id]
+        window_len = end - start
+        color = colors[idx % len(colors)]
+        axes[1].plot(
+            np.arange(window_len),
+            targets[idx, :window_len].cpu().numpy(),
+            marker="o",
+            color=color,
+            label=f"Target query {idx + 1} → window {window_id}",
+        )
+        axes[1].plot(
+            np.arange(window_len),
+            signal[start:end],
+            marker="x",
+            linestyle="--",
+            color=color,
+            alpha=0.8,
+            label=f"Source window {window_id}",
+        )
+    max_len = targets.shape[-1]
+    axes[1].set_xlim(-0.5, max_len + 1)
+    axes[1].set_title("Replay targets vs source windows")
     axes[1].set_xlabel("Position in window")
     axes[1].set_ylabel("Amplitude")
     axes[1].grid(True, axis="y", linestyle="--", alpha=0.4)

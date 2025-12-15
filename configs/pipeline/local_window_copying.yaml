@@ -4,4 +4,9 @@ defaults:
   - override /dataset: local_window_copying
   - override /task: regression
 
+task:
+  metrics:
+    - mse
+    - mae
+
 encoder: linear

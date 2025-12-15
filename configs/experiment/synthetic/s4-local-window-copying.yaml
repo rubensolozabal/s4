@@ -7,7 +7,9 @@ dataset:
   l_seq: 4096
   l_window_min: 64
   l_window_max: 128
-  query_length: 1
+  n_windows_min: 1
+  n_windows_max: 2
+  query_length: ${.n_windows_max}
   dt: 0.001
   freq: 20.0
   static: false
