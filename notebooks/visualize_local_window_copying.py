@@ -60,25 +60,19 @@ def sample_sequence(config: dict[str, Any], seed: int | None = None) -> tuple[to
 
 
 def extract_windows(markers: np.ndarray, query_length: int) -> list[tuple[int, int, int]]:
-    """
-    Return (window_id, start, end) tuples using boundary markers:
-    +id at window start, -id at window end, 0 inside.
-    """
+    """Return (window_id, start, end) tuples for all positive marker regions."""
     sequence_markers = markers if query_length == 0 else markers[:-query_length]
     window_ids = sorted({int(val) for val in np.unique(sequence_markers) if val > 0})
     windows: list[tuple[int, int, int]] = []
     for window_id in window_ids:
-        starts = np.flatnonzero(sequence_markers == window_id)
-        if starts.size == 0:
+        window_idx = np.flatnonzero(sequence_markers == window_id)
+        if window_idx.size == 0:
             continue
-        start_idx = int(starts.min())
-        end_candidates = np.flatnonzero((sequence_markers == -window_id) & (np.arange(sequence_markers.size) > start_idx))
-        if end_candidates.size == 0:
-            continue
-        end_idx = int(end_candidates.min())
-        windows.append((window_id, start_idx, end_idx + 1))
+        start = int(window_idx.min())
+        end = int(window_idx.max()) + 1
+        windows.append((window_id, start, end))
     if not windows:
-        raise ValueError("No window boundary markers found.")
+        raise ValueError("No positive markers found for window regions.")
     return windows
 
 
@@ -133,7 +127,7 @@ def plot_example(inputs: torch.Tensor, targets: torch.Tensor, config: dict[str, 
 
     # Input signal with markers
     axes[0].plot(time, signal, color="#1f78b4", linewidth=1.2, label="Signal")
-    axes[0].step(time, markers, where="mid", color="#d95f02", alpha=0.7, label="Markers (+start id, -end/query id)")
+    axes[0].step(time, markers, where="mid", color="#d95f02", alpha=0.7, label="Markers (+window id, -query id)")
     for i, (window_id, start, end) in enumerate(windows):
         axes[0].axvspan(
             start,

@@ -59,10 +59,9 @@ def _generate_local_window_sample(
     total_len = l_seq + query_length
     markers = torch.zeros(total_len, dtype=signal.dtype)
 
-    # Markers: +id at window start, -id at window end, 0 inside.
+    # Markers: +id over each window interior; queries remain negative markers in tail.
     for idx, (start, length) in enumerate(windows, start=1):
-        markers[start] = float(idx)
-        markers[start + length - 1] = -float(idx)
+        markers[start : start + length] = float(idx)
 
     # Shuffle the replay order and encode queries with negative markers.
     query_order = np.random.permutation(n_windows)

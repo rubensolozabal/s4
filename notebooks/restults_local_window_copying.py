@@ -42,27 +42,16 @@ def _extract_window(markers: torch.Tensor) -> Tuple[int, int]:
 
 
 def _extract_windows(markers: torch.Tensor, query_length: int) -> List[Tuple[int, int, int]]:
-    """
-    Return (window_id, start, end) using boundary markers:
-    +id at window start, -id at window end, 0 inside.
-    """
+    """Return (window_id, start, end) for all positive marker regions."""
     sequence_markers = markers if query_length == 0 else markers[:-query_length]
     window_ids = sorted({int(v.item()) for v in sequence_markers.unique() if v.item() > 0})
     windows: List[Tuple[int, int, int]] = []
     for wid in window_ids:
-        starts = (sequence_markers == float(wid)).nonzero(as_tuple=False).squeeze(-1)
-        if starts.numel() == 0:
+        idx = (sequence_markers == float(wid)).nonzero(as_tuple=False).squeeze(-1)
+        if idx.numel() == 0:
             continue
-        start = int(starts.min().item())
-        end_candidates = (
-            (sequence_markers == -float(wid))
-            .nonzero(as_tuple=False)
-            .squeeze(-1)
-        )
-        end_candidates = end_candidates[end_candidates > start]
-        if end_candidates.numel() == 0:
-            continue
-        end = int(end_candidates.min().item()) + 1
+        start = int(idx.min().item())
+        end = int(idx.max().item()) + 1
         windows.append((wid, start, end))
     return windows
 
