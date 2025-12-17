@@ -33,6 +33,8 @@ def _generate_local_window_sample(
     n_windows_min: int,
     n_windows_max: int,
     query_length: int,
+    target_mode: str,
+    window_op: str,
 ):
     """Create a single local copying sample with multiple marked windows and replay queries."""
     if l_window_min <= 0 or l_window_min > l_window_max:
@@ -45,7 +47,11 @@ def _generate_local_window_sample(
         raise ValueError("Total minimum window length exceeds sequence length")
     if query_length <= 0:
         raise ValueError("query_length must be positive")
-    if n_windows_max > query_length:
+
+    target_mode = target_mode.lower()
+    if target_mode not in {"reconstruct", "aggregate"}:
+        raise ValueError(f"Unsupported target_mode: {target_mode}")
+    if target_mode == "reconstruct" and n_windows_max > query_length:
         raise ValueError("query_length must be at least as large as n_windows_max to hold queries")
 
     signal = torch.as_tensor(whitesignal(l_seq * dt, dt, freq), dtype=torch.float)
@@ -63,12 +69,35 @@ def _generate_local_window_sample(
     for idx, (start, length) in enumerate(windows, start=1):
         markers[start : start + length] = float(idx)
 
-    # Shuffle the replay order and encode queries with negative markers.
-    query_order = np.random.permutation(n_windows)
-    for query_idx, window_idx in enumerate(query_order):
-        start, length = windows[int(window_idx)]
-        markers[l_seq + query_idx] = -(float(window_idx) + 1.0)
-        targets[query_idx, :length] = signal[start : start + length]
+    if target_mode == "aggregate":
+        window_op = window_op.lower()
+        if window_op == "add":
+            aggregate = torch.zeros(l_window_max, dtype=signal.dtype)
+        elif window_op == "multiply":
+            aggregate = torch.ones(l_window_max, dtype=signal.dtype)
+        else:
+            raise ValueError(f"Unsupported window_op: {window_op}")
+
+        for start, length in windows:
+            segment = signal[start : start + length]
+            if window_op == "add":
+                padded = torch.zeros(l_window_max, dtype=signal.dtype)
+                padded[:length] = segment
+                aggregate = aggregate + padded
+            else:
+                padded = torch.ones(l_window_max, dtype=signal.dtype)
+                padded[:length] = segment
+                aggregate = aggregate * padded
+
+        markers[l_seq:] = -1.0
+        targets[:] = aggregate.unsqueeze(0)
+    else:
+        # Shuffle the replay order and encode queries with negative markers.
+        query_order = np.random.permutation(n_windows)
+        for query_idx, window_idx in enumerate(query_order):
+            start, length = windows[int(window_idx)]
+            markers[l_seq + query_idx] = -(float(window_idx) + 1.0)
+            targets[query_idx, :length] = signal[start : start + length]
 
     padded_signal = torch.cat([signal, torch.zeros(query_length, dtype=signal.dtype)], dim=0)
     x = torch.stack([padded_signal, markers], dim=-1)
@@ -87,6 +116,8 @@ class LocalWindowCopyingTrainDataset(torch.utils.data.Dataset):
         n_windows_min: int,
         n_windows_max: int,
         query_length: int,
+        target_mode: str,
+        window_op: str,
     ):
         super().__init__()
         self.samples = samples
@@ -98,6 +129,8 @@ class LocalWindowCopyingTrainDataset(torch.utils.data.Dataset):
         self.n_windows_min = n_windows_min
         self.n_windows_max = n_windows_max
         self.query_length = query_length
+        self.target_mode = target_mode
+        self.window_op = window_op
 
     def __getitem__(self, idx):
         assert 0 <= idx < self.samples
@@ -110,6 +143,8 @@ class LocalWindowCopyingTrainDataset(torch.utils.data.Dataset):
             self.n_windows_min,
             self.n_windows_max,
             self.query_length,
+            self.target_mode,
+            self.window_op,
         )
 
     def __len__(self):
@@ -128,6 +163,8 @@ class LocalWindowCopyingEvalDataset(torch.utils.data.TensorDataset):
         n_windows_min: int,
         n_windows_max: int,
         query_length: int,
+        target_mode: str,
+        window_op: str,
     ):
         xs, ys = zip(
             *[
@@ -140,6 +177,8 @@ class LocalWindowCopyingEvalDataset(torch.utils.data.TensorDataset):
                     n_windows_min,
                     n_windows_max,
                     query_length,
+                    target_mode,
+                    window_op,
                 )
                 for _ in range(samples)
             ]

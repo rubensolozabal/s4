@@ -55,6 +55,8 @@ def sample_sequence(config: dict[str, Any], seed: int | None = None) -> tuple[to
         n_windows_min=int(config["n_windows_min"]),
         n_windows_max=int(config["n_windows_max"]),
         query_length=int(config["query_length"]),
+        target_mode=str(config.get("target_mode", "reconstruct")),
+        window_op=str(config.get("window_op", "add")),
     )
     return x, y
 
@@ -91,18 +93,39 @@ def print_summary(inputs: torch.Tensor, targets: torch.Tensor, config: dict[str,
     markers = inputs[:, 1]
     total_length = signal.numel()
     query_length = int(config["query_length"])
+    target_mode = str(config.get("target_mode", "reconstruct")).lower()
+    window_op = str(config.get("window_op", "add")).lower()
     markers_np = markers.numpy()
     windows = extract_windows(markers_np, query_length)
     queries = extract_queries(markers_np, query_length)
     window_desc = ", ".join(f"{wid}:[{start},{end})" for wid, start, end in windows)
-    query_order = ", ".join(f"{q_idx + 1}→w{wid}" for q_idx, (_, wid) in enumerate(queries))
+    if target_mode == "aggregate":
+        query_order = "aggregate" if query_length > 0 else "none"
+    else:
+        query_order = ", ".join(f"{q_idx + 1}→w{wid}" for q_idx, (_, wid) in enumerate(queries))
 
     print(f"Sequence length: {total_length} (signal={config['l_seq']} + query={query_length})")
     print(f"Windows ({len(windows)}): {window_desc}")
     print(f"Query region: [{total_length - query_length}:{total_length})")
     print(f"Replay order ({len(queries)} queries): {query_order or 'none'}")
 
-    if queries:
+    if target_mode == "aggregate":
+        aggregate = torch.zeros(targets.shape[-1], dtype=signal.dtype)
+        if window_op == "multiply":
+            aggregate = torch.ones_like(aggregate)
+        for _, start, end in windows:
+            segment = signal[start:end]
+            if window_op == "multiply":
+                padded = torch.ones_like(aggregate)
+                padded[: segment.numel()] = segment
+                aggregate = aggregate * padded
+            else:
+                padded = torch.zeros_like(aggregate)
+                padded[: segment.numel()] = segment
+                aggregate = aggregate + padded
+        exact_match = torch.allclose(aggregate, targets[0])
+        print(f"Sanity check (aggregate): match={exact_match}")
+    elif queries:
         first_query_idx, window_id = queries[0]
         _, start, end = next(item for item in windows if item[0] == window_id)
         window_len = end - start
@@ -116,6 +139,8 @@ def plot_example(inputs: torch.Tensor, targets: torch.Tensor, config: dict[str, 
     signal = inputs[:, 0].cpu().numpy()
     markers = inputs[:, 1].cpu().numpy()
     query_length = int(config["query_length"])
+    target_mode = str(config.get("target_mode", "reconstruct")).lower()
+    window_op = str(config.get("window_op", "add")).lower()
     time = np.arange(signal.shape[0])
 
     windows = extract_windows(markers, query_length)
@@ -139,10 +164,11 @@ def plot_example(inputs: torch.Tensor, targets: torch.Tensor, config: dict[str, 
     axes[0].axvspan(query_start - 0.5, signal.shape[0] - 0.5, color="#f5c6cb", alpha=0.35, label="Query steps")
     for i, (offset, window_id) in enumerate(queries):
         axes[0].axvline(query_start + offset, color="#e31a1c", linestyle="--", alpha=0.8, label="Replay prompts" if i == 0 else None)
+        label = "agg" if target_mode == "aggregate" else f"w{window_id}"
         axes[0].text(
             query_start + offset + 0.1,
             max(1.0, np.max(np.abs(markers))) * 0.8,
-            f"w{window_id}",
+            label,
             fontsize=8,
             color="#e31a1c",
         )
@@ -151,35 +177,70 @@ def plot_example(inputs: torch.Tensor, targets: torch.Tensor, config: dict[str, 
     axes[0].set_ylabel("Value / marker")
     axes[0].legend()
 
-    # Target vs source window
-    colors = plt.cm.tab10.colors
-    for idx, (offset, window_id) in enumerate(queries):
-        start, end = window_lookup[window_id]
-        window_len = end - start
-        color = colors[idx % len(colors)]
+    if target_mode == "aggregate":
+        aggregate = np.zeros(targets.shape[-1], dtype=np.float64)
+        if window_op == "multiply":
+            aggregate = np.ones_like(aggregate)
+        for _, start, end in windows:
+            segment = signal[start:end]
+            if window_op == "multiply":
+                padded = np.ones_like(aggregate)
+                padded[: segment.shape[0]] = segment
+                aggregate = aggregate * padded
+            else:
+                padded = np.zeros_like(aggregate)
+                padded[: segment.shape[0]] = segment
+                aggregate = aggregate + padded
         axes[1].plot(
-            np.arange(window_len),
-            targets[idx, :window_len].cpu().numpy(),
+            np.arange(targets.shape[-1]),
+            targets[0].cpu().numpy(),
             marker="o",
-            color=color,
-            label=f"Target query {idx + 1} → window {window_id}",
+            color="#1b9e77",
+            label="Target aggregate",
         )
         axes[1].plot(
-            np.arange(window_len),
-            signal[start:end],
+            np.arange(targets.shape[-1]),
+            aggregate,
             marker="x",
             linestyle="--",
-            color=color,
-            alpha=0.8,
-            label=f"Source window {window_id}",
+            color="#d95f02",
+            label=f"Computed ({window_op})",
         )
-    max_len = targets.shape[-1]
-    axes[1].set_xlim(-0.5, max_len + 1)
-    axes[1].set_title("Replay targets vs source windows")
-    axes[1].set_xlabel("Position in window")
-    axes[1].set_ylabel("Amplitude")
-    axes[1].grid(True, axis="y", linestyle="--", alpha=0.4)
-    axes[1].legend()
+        axes[1].set_title("Aggregate over windows")
+        axes[1].set_xlabel("Position in window")
+        axes[1].set_ylabel("Value")
+        axes[1].grid(True, axis="y", linestyle="--", alpha=0.4)
+        axes[1].legend()
+    else:
+        # Target vs source window
+        colors = plt.cm.tab10.colors
+        for idx, (offset, window_id) in enumerate(queries):
+            start, end = window_lookup[window_id]
+            window_len = end - start
+            color = colors[idx % len(colors)]
+            axes[1].plot(
+                np.arange(window_len),
+                targets[idx, :window_len].cpu().numpy(),
+                marker="o",
+                color=color,
+                label=f"Target query {idx + 1} → window {window_id}",
+            )
+            axes[1].plot(
+                np.arange(window_len),
+                signal[start:end],
+                marker="x",
+                linestyle="--",
+                color=color,
+                alpha=0.8,
+                label=f"Source window {window_id}",
+            )
+        max_len = targets.shape[-1]
+        axes[1].set_xlim(-0.5, max_len + 1)
+        axes[1].set_title("Replay targets vs source windows")
+        axes[1].set_xlabel("Position in window")
+        axes[1].set_ylabel("Amplitude")
+        axes[1].grid(True, axis="y", linestyle="--", alpha=0.4)
+        axes[1].legend()
 
     return fig
 

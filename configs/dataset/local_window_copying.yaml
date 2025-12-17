@@ -5,6 +5,8 @@ l_window_max: 128     # maximum length of window to reconstruct
 n_windows_min: 3      # minimum number of windows per sequence
 n_windows_max: 10     # maximum number of windows per sequence
 query_length: ${.n_windows_max}  # number of query steps appended after the signal (max windows)
+target_mode: reconstruct  # reconstruct | aggregate
+window_op: add        # add | multiply (only for aggregate)
 dt: 0.001
 freq: 2.0
 static: false         # keep sampling new sequences each epoch

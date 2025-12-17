@@ -74,6 +74,8 @@ def _plot_example(
     pred: torch.Tensor,
     save_dir: Path,
     show: bool,
+    target_mode: str,
+    window_op: str,
 ):
     signal = x[:, 0]
     markers = x[:, 1]
@@ -105,49 +107,74 @@ def _plot_example(
     )
     for i, (offset, wid) in enumerate(queries):
         axes[0].axvline(query_start + offset, color="#e31a1c", linestyle="--", alpha=0.8, label="replay" if i == 0 else None)
+        label = "agg" if target_mode == "aggregate" else f"w{wid}"
         axes[0].text(
             query_start + offset + 0.1,
             max(1.0, markers.abs().max().item()) * 0.8,
-            f"w{wid}",
+            label,
             fontsize=8,
             color="#e31a1c",
         )
     axes[0].set_title(f"Input sequence (example {idx})")
     axes[0].legend()
 
-    colors = plt.cm.tab10.colors
-    per_query_mae = []
-    for q_idx, (offset, wid) in enumerate(queries):
-        if wid not in window_lookup:
-            continue
-        start, end = window_lookup[wid]
-        window_len = end - start
-        targ_row = target[q_idx, :window_len]
-        pred_row = pred[q_idx, :window_len]
+    if target_mode == "aggregate":
+        targ_row = target[0]
+        pred_row = pred[0]
         mae = torch.nn.functional.l1_loss(pred_row, targ_row).item()
-        per_query_mae.append(mae)
-        color = colors[q_idx % len(colors)]
         axes[1].plot(
-            range(window_len),
+            range(targ_row.numel()),
             targ_row,
-            label=f"target q{q_idx+1}→w{wid}",
+            label="target aggregate",
             linewidth=2,
             alpha=0.85,
-            color=color,
+            color="#1b9e77",
         )
         axes[1].plot(
-            range(window_len),
+            range(pred_row.numel()),
             pred_row,
-            label=f"pred q{q_idx+1}",
+            label="pred aggregate",
             linestyle="--",
             linewidth=2,
-            color=color,
+            color="#d95f02",
         )
+        axes[1].set_title(f"Aggregate window signal (MAE={mae:.4f})")
+        axes[1].set_xlabel("Position in window")
+        axes[1].legend()
+    else:
+        colors = plt.cm.tab10.colors
+        per_query_mae = []
+        for q_idx, (offset, wid) in enumerate(queries):
+            if wid not in window_lookup:
+                continue
+            start, end = window_lookup[wid]
+            window_len = end - start
+            targ_row = target[q_idx, :window_len]
+            pred_row = pred[q_idx, :window_len]
+            mae = torch.nn.functional.l1_loss(pred_row, targ_row).item()
+            per_query_mae.append(mae)
+            color = colors[q_idx % len(colors)]
+            axes[1].plot(
+                range(window_len),
+                targ_row,
+                label=f"target q{q_idx+1}→w{wid}",
+                linewidth=2,
+                alpha=0.85,
+                color=color,
+            )
+            axes[1].plot(
+                range(window_len),
+                pred_row,
+                label=f"pred q{q_idx+1}",
+                linestyle="--",
+                linewidth=2,
+                color=color,
+            )
 
-    avg_mae = sum(per_query_mae) / len(per_query_mae) if per_query_mae else float("nan")
-    axes[1].set_title(f"Window replays (avg MAE={avg_mae:.4f}, queries={len(per_query_mae)})")
-    axes[1].set_xlabel("Position in window")
-    axes[1].legend()
+        avg_mae = sum(per_query_mae) / len(per_query_mae) if per_query_mae else float("nan")
+        axes[1].set_title(f"Window replays (avg MAE={avg_mae:.4f}, queries={len(per_query_mae)})")
+        axes[1].set_xlabel("Position in window")
+        axes[1].legend()
 
     save_dir.mkdir(parents=True, exist_ok=True)
     out_path = save_dir / f"val_example_{idx}.png"
@@ -248,6 +275,9 @@ def main():
     run_dir = args.run_dir
     config = _load_config(run_dir)
     ckpt_path = args.checkpoint or _default_ckpt(run_dir)
+    dataset_cfg = _to_dict(config.dataset)
+    target_mode = str(dataset_cfg.get("target_mode", "reconstruct")).lower()
+    window_op = str(dataset_cfg.get("window_op", "add")).lower()
 
     device = (
         torch.device(args.device)
@@ -273,7 +303,16 @@ def main():
     )
 
     for idx, (x, target, pred) in enumerate(examples, start=1):
-        _plot_example(idx, x, target, pred, save_dir=save_dir, show=args.show)
+        _plot_example(
+            idx,
+            x,
+            target,
+            pred,
+            save_dir=save_dir,
+            show=args.show,
+            target_mode=target_mode,
+            window_op=window_op,
+        )
 
 
 if __name__ == "__main__":

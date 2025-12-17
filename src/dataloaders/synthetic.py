@@ -170,6 +170,8 @@ class LocalWindowCopying(SequenceDataset):
             "n_windows_min": 3,
             "n_windows_max": 10,
             "query_length": 10,
+            "target_mode": "reconstruct",
+            "window_op": "add",
             "static": False,
             "n_train": 10000,
             "n_eval": 1000,
@@ -211,6 +213,8 @@ class LocalWindowCopying(SequenceDataset):
             n_windows_min=self.n_windows_min,
             n_windows_max=self.n_windows_max,
             query_length=self.query_length,
+            target_mode=self.target_mode,
+            window_op=self.window_op,
         )
         self.dataset_val = LocalWindowCopyingEvalDataset(
             samples=self.n_eval,
@@ -222,6 +226,8 @@ class LocalWindowCopying(SequenceDataset):
             n_windows_min=self.n_windows_min,
             n_windows_max=self.n_windows_max,
             query_length=self.query_length,
+            target_mode=self.target_mode,
+            window_op=self.window_op,
         )
         self.dataset_test = None
 
