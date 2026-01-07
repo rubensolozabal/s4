@@ -121,7 +121,7 @@ class SequenceResidualBlock(SequenceModule):
         # Pool
         if self.pool is not None: y, _ = self.pool(y)
 
-        return y, state
+        return y, new_state # r.s.o: bug, it was returning "state" before
 
     def step(self, x, state, **kwargs):
         assert not self.bidirectional
