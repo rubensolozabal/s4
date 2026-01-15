@@ -110,7 +110,7 @@ def param_transform(param, transform='none'):
 from safariWave.Frame_Builder import *
 from safariWave.SSM_Builder import *
 from safariWave.SSM_Solver import *
-from safariWave import Additional_Frames_old as addf
+from safariWave import Additional_Frames as addf
 
 class SSMKernel(Kernel):
     """Parent class for different SSM parameterizations.
@@ -184,75 +184,160 @@ class SSMKernel(Kernel):
     def init_ssm_frame(self):
         """Returns (dense, real) (A, B, C) parameters from a frame object."""
 
-        if self.init == "hippo_legs":
+        if self.init == "hippo_legS":
 
             # Hippo Legs
             hippo_legs = SSM(params={'N':self.N, 'fname':'legendre', 'meas':'scaled'})
             A, B = hippo_legs.A, hippo_legs.B
 
-        elif self.init == "safari_legs":
+        elif self.init == "safari_legS":
 
             # Safari Legs
             myFrame = Fobj(fname='legendre', params={'N':self.N, 'L':100000})
             safari_legs = SSM(  Fobjgiven=myFrame, params={ 'meas':'scaled'})
             A, B = safari_legs.A, safari_legs.B
 
-        elif self.init == "safari_morlets":
+        elif self.init == "safari_morletS":
 
             # Safari Morlet
-            # F_morlet = addf.morlet_frame(fmin=1, fmax=3, fstep=1, L=131072, redundancy=1)
-            F_morlet = addf.morlet_frame(fmin=0.2, fmax=3, fstep=0.5, L=131072, redundancy=1, make_tight=True)
+            F_morlet = addf.morlet_frame(self.N, 131072, make_tight=True)
             frame_morlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
             frame_morlet.make_frame(F_morlet)
 
             MorletS = SSM(Fobjgiven=frame_morlet, params={'fname':'morlet',  'meas': 'scaled'})
             A, B = MorletS.A, MorletS.B
 
-            # Update N
-            self.N = A.shape[0]
 
-        elif self.init == "safari_morlett":
+        elif self.init == "safari_morletT":
 
             # Safari Morlet
-            # F_morlet = addf.morlet_frame(fmin=1, fmax=3, fstep=1, L=131072, redundancy=1)
-            F_morlet = addf.morlet_frame(fmin=0.2, fmax=3, fstep=0.5, L=131072, redundancy=1, make_tight=True)
+            F_morlet = addf.morlet_frame(self.N, 131072, make_tight=True)
             frame_morlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
             frame_morlet.make_frame(F_morlet)
 
             MorletT = SSM(Fobjgiven=frame_morlet, params={'fname':'morlet',  'meas': 'translated'})
             A, B = MorletT.A, MorletT.B
+
+
+        elif self.init == "safari_cmorletS":
+            # Safari Complex Morlet
+            F_cmorlet = addf.cmorlet_frame(self.N, 131072, make_tight=True)
+            frame_cmorlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_cmorlet.make_frame(F_cmorlet)
+
+            CMorletS = SSM(Fobjgiven=frame_cmorlet, params={'fname':'cmorlet',  'meas': 'scaled'})
+            A, B = CMorletS.A, CMorletS.B
+
+
+        elif self.init == "safari_cmorletT":
+            # Safari Complex Morlet
+            F_cmorlet = addf.cmorlet_frame(self.N, 131072, make_tight=True)
+            frame_cmorlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_cmorlet.make_frame(F_cmorlet)
+
+            CMorletT = SSM(Fobjgiven=frame_cmorlet, params={'fname':'cmorlet',  'meas': 'translated'})
+            A, B = CMorletT.A, CMorletT.B   
+
+
+        elif self.init == "safari_cgaussS":
+            # Safari Complex Gauss
+            F_cgauss = addf.cgauss_frame(self.N, 131072, make_tight=True) 
+            frame_cgauss= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_cgauss.make_frame(F_cgauss)
+
+            CGauS = SSM(Fobjgiven=frame_cgauss, params={'fname':'cgabor',  'meas': 'scaled'})
+            A, B = CGauS.A, CGauS.B
+
+
+        elif self.init == "safari_cgaussT":
+            # Safari Complex Gauss
+            F_cgauss = addf.cgauss_frame(self.N, 131072, make_tight=True) 
+            frame_cgauss= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_cgauss.make_frame(F_cgauss)
+
+            CGauT = SSM(Fobjgiven=frame_cgauss, params={'fname':'cgabor',  'meas': 'translated'})
+            A, B = CGauT.A, CGauT.B   
+
+
+        elif self.init == "safari_gaussS":
+
+            # Safari Gauss
+            F_gauss = addf.gauss_frame(self.N, 131072, make_tight=True) 
+            frame_gauss= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_gauss.make_frame(F_gauss)
+
+            GauS = SSM(Fobjgiven=frame_gauss, params={'fname':'gabor',  'meas': 'scaled'})
+            A, B = GauS.A, GauS.B
+
+        elif self.init == "safari_gaussT":
+
+            # Safari Gauss
+            F_gauss = addf.gauss_frame(self.N, 131072, make_tight=True) 
+            frame_gauss= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_gauss.make_frame(F_gauss)
+
+            GauT = SSM(Fobjgiven=frame_gauss, params={'fname':'gabor',  'meas': 'translated'})
+            A, B = GauT.A, GauT.B   
             
-            # Update N
-            self.N = A.shape[0]
 
-        elif self.init == "safari_gabors":
+        elif self.init == "safari_mexhatS":
+            # Safari Mexhat
+            F_mexhat = addf.mexhat_frame(self.N, 131072, make_tight=True) 
+            frame_mexhat= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_mexhat.make_frame(F_mexhat)
 
-            # Safari Gabor
-            F_gabor = addf.gabor_frame(self.N, 131072) 
-            frame_gabor= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_gabor.make_frame(F_gabor)
+            MexhatS = SSM(Fobjgiven=frame_mexhat, params={'fname':'mexhat',  'meas': 'scaled'})
+            A, B = MexhatS.A, MexhatS.B   
 
-            GabS = SSM(Fobjgiven=frame_gabor, params={'fname':'gabor',  'meas': 'scaled'})
-            A, B = GabS.A, GabS.B
+        elif self.init == "safari_mexhatT":
+            # Safari Mexhat
+            F_mexhat = addf.mexhat_frame(self.N, 131072, make_tight=True) 
+            frame_mexhat= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_mexhat.make_frame(F_mexhat)
 
-            # Update N
-            self.N = A.shape[0]
-
-        elif self.init == "safari_gabort":
-
-            # Safari Gabor
-            F_gabor = addf.gabor_frame(self.N, 131072) 
-            frame_gabor= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_gabor.make_frame(F_gabor)
-
-            GabT = SSM(Fobjgiven=frame_gabor, params={'fname':'gabor',  'meas': 'translated'})
-            A, B = GabT.A, GabT.B   
+            MexhatT = SSM(Fobjgiven=frame_mexhat, params={'fname':'mexhat',  'meas': 'translated'})
+            A, B = MexhatT.A, MexhatT.B   
             
-            # Update N
-            self.N = A.shape[0]
+
+        elif self.init == "safari_shannonS":
+            # Safari Shannon
+            F_shannon = addf.shannon_frame(self.N, 131072, make_tight=True) 
+            frame_shannon= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_shannon.make_frame(F_shannon)
+            ShannonS = SSM(Fobjgiven=frame_shannon, params={'fname':'shannon',  'meas': 'scaled'})
+            A, B = ShannonS.A, ShannonS.B   
+
+
+        elif self.init == "safari_shannonT":
+            # Safari Shannon
+            F_shannon = addf.shannon_frame(self.N, 131072, make_tight=True) 
+            frame_shannon= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_shannon.make_frame(F_shannon)
+            ShannonT = SSM(Fobjgiven=frame_shannon, params={'fname':'shannon',  'meas': 'translated'})
+            A, B = ShannonT.A, ShannonT.B   
+
+
+        elif self.init == "safari_fbspS":
+            # Safari FBSP
+            F_fbsp = addf.fbsp_frame(self.N, 131072, make_tight=True) 
+            frame_fbsp= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_fbsp.make_frame(F_fbsp)
+            FBSPs = SSM(Fobjgiven=frame_fbsp, params={'fname':'fbsp',  'meas': 'scaled'})
+            A, B = FBSPs.A, FBSPs.B   
+            
+
+        elif self.init == "safari_fbspT":
+            # Safari FBSP
+            F_fbsp = addf.fbsp_frame(self.N, 131072, make_tight=True) 
+            frame_fbsp= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            frame_fbsp.make_frame(F_fbsp)
+            FBSPt = SSM(Fobjgiven=frame_fbsp, params={'fname':'fbsp',  'meas': 'translated'})
+            A, B = FBSPt.A, FBSPt.B   
 
         else:
             raise NotImplementedError(f"Frame initialization {self.init} not implemented.")
+
+        assert A.shape[0] == self.N, f"Frame initialization {self.init} produced wrong size A matrix."
 
         A = -A # Negate A to match S4 convention
 

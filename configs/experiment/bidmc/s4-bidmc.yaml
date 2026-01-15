@@ -42,3 +42,6 @@ scheduler:
 
 train:
   seed: 1112
+
+wandb:
+  name: bidmc/s4-bidmc
