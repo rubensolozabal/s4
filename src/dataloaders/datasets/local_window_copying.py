@@ -24,6 +24,24 @@ def _draw_non_overlapping_windows(
     return sorted(windows, key=lambda pair: pair[0])
 
 
+def _draw_fixed_windows(
+    l_seq: int, l_window_max: int, n_windows: int
+) -> List[Tuple[int, int]]:
+    """Place equal-length windows evenly across the sequence, left to right."""
+    if n_windows <= 0:
+        raise ValueError("n_windows must be positive")
+    if n_windows * l_window_max > l_seq:
+        raise ValueError("Total fixed window length exceeds sequence length")
+    gap = (l_seq - n_windows * l_window_max) // (n_windows + 1)
+    starts: List[int] = []
+    pos = gap
+    for _ in range(n_windows):
+        starts.append(pos)
+        pos += l_window_max + gap
+    windows = [(int(s), int(l_window_max)) for s in starts]
+    return windows
+
+
 def _generate_local_window_sample(
     l_seq: int,
     l_window_min: int,
@@ -35,6 +53,8 @@ def _generate_local_window_sample(
     query_length: int,
     target_mode: str,
     window_op: str,
+    fixed_windows: bool = False,
+    ordered_queries: bool = False,
 ):
     """Create a single local copying sample with multiple marked windows and replay queries."""
     if l_window_min <= 0 or l_window_min > l_window_max:
@@ -57,7 +77,12 @@ def _generate_local_window_sample(
     signal = torch.as_tensor(whitesignal(l_seq * dt, dt, freq), dtype=torch.float)
 
     n_windows = int(np.random.randint(n_windows_min, n_windows_max + 1))
-    windows = _draw_non_overlapping_windows(l_seq, l_window_min, l_window_max, n_windows)
+    if fixed_windows:
+        if l_window_min != l_window_max:
+            raise ValueError("fixed_windows requires l_window_min == l_window_max")
+        windows = _draw_fixed_windows(l_seq, l_window_max, n_windows)
+    else:
+        windows = _draw_non_overlapping_windows(l_seq, l_window_min, l_window_max, n_windows)
 
     # Targets are padded to the maximum possible number of queries.
     targets = torch.zeros((query_length, l_window_max), dtype=signal.dtype)
@@ -93,7 +118,7 @@ def _generate_local_window_sample(
         targets[:] = aggregate.unsqueeze(0)
     else:
         # Shuffle the replay order and encode queries with negative markers.
-        query_order = np.random.permutation(n_windows)
+        query_order = np.arange(n_windows) if ordered_queries else np.random.permutation(n_windows)
         for query_idx, window_idx in enumerate(query_order):
             start, length = windows[int(window_idx)]
             markers[l_seq + query_idx] = -(float(window_idx) + 1.0)
@@ -118,6 +143,8 @@ class LocalWindowCopyingTrainDataset(torch.utils.data.Dataset):
         query_length: int,
         target_mode: str,
         window_op: str,
+        fixed_windows: bool = False,
+        ordered_queries: bool = False,
     ):
         super().__init__()
         self.samples = samples
@@ -131,6 +158,8 @@ class LocalWindowCopyingTrainDataset(torch.utils.data.Dataset):
         self.query_length = query_length
         self.target_mode = target_mode
         self.window_op = window_op
+        self.fixed_windows = fixed_windows
+        self.ordered_queries = ordered_queries
 
     def __getitem__(self, idx):
         assert 0 <= idx < self.samples
@@ -145,6 +174,8 @@ class LocalWindowCopyingTrainDataset(torch.utils.data.Dataset):
             self.query_length,
             self.target_mode,
             self.window_op,
+            self.fixed_windows,
+            self.ordered_queries,
         )
 
     def __len__(self):
@@ -165,6 +196,8 @@ class LocalWindowCopyingEvalDataset(torch.utils.data.TensorDataset):
         query_length: int,
         target_mode: str,
         window_op: str,
+        fixed_windows: bool = False,
+        ordered_queries: bool = False,
     ):
         xs, ys = zip(
             *[
@@ -179,6 +212,8 @@ class LocalWindowCopyingEvalDataset(torch.utils.data.TensorDataset):
                     query_length,
                     target_mode,
                     window_op,
+                    fixed_windows,
+                    ordered_queries,
                 )
                 for _ in range(samples)
             ]

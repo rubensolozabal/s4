@@ -2,14 +2,18 @@
 defaults:
   - /pipeline: local_window_copying
   - /model: s4
+  - override /dataset: local_window_copying_fixed
 
 dataset:
   l_seq: 4096
   l_window_min: 64
-  l_window_max: 128
-  n_windows_min: 1
-  n_windows_max: 2
+  l_window_max: 64
+  n_windows_min: 8
+  n_windows_max: 8
   query_length: ${.n_windows_max}
+  target_mode: reconstruct
+  fixed_windows: true
+  ordered_queries: true
   dt: 0.001
   freq: 20.0
   static: false
@@ -31,7 +35,6 @@ model:
       B: 0.0001
       dt: 0.0001
 
-
 loader:
   batch_size: 64
 
@@ -40,13 +43,14 @@ optimizer:
   weight_decay: 0.0
 
 trainer:
-  devices: [0]
+  devices: [1]
   max_steps: 400000
   max_epochs: 1000
 
 train:
   seed: 3333
   remove_test_loader_in_eval: true
+  freeze_first_layer: true
 
 wandb:
-  name: synthetic/s4-local-window-copying
+  name: synthetic/s4-local-window-copying-v3-fixed

@@ -23,7 +23,7 @@ from dataloaders.datasets.local_window_copying import (  # type: ignore  # pylin
     _generate_local_window_sample,
 )
 
-DEFAULT_EXPERIMENT = S4_ROOT / "configs" / "experiment" / "synthetic" / "s4-local-window-copying.yaml"
+DEFAULT_EXPERIMENT = S4_ROOT / "configs" / "experiment" / "synthetic" / "s4-local-window-copying-v3-fixed.yaml"
 DEFAULT_DATASET = S4_ROOT / "configs" / "dataset" / "local_window_copying.yaml"
 
 
@@ -57,6 +57,8 @@ def sample_sequence(config: dict[str, Any], seed: int | None = None) -> tuple[to
         query_length=int(config["query_length"]),
         target_mode=str(config.get("target_mode", "reconstruct")),
         window_op=str(config.get("window_op", "add")),
+        fixed_windows=bool(config.get("fixed_windows", False)),
+        ordered_queries=bool(config.get("ordered_queries", False)),
     )
     return x, y
 

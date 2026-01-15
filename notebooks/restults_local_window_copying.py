@@ -232,7 +232,8 @@ def main():
         type=Path,
         # default=Path("S4/outputs/2025-12-12/14-08-51-883639"), # original local-window-copying run
         # default=Path("S4/outputs/2025-12-12/18-39-41-894048"), # new local-window-copying run multuple windows 1 to 2
-        default=Path("S4/outputs/2025-12-15/09-36-16-852462"), # new local-window-copying start-end markers
+        # default=Path("S4/outputs/2025-12-15/09-36-16-852462"), # new local-window-copying start-end markers
+        default=Path("S4/outputs/2026-01-07/23-32-34-799516"), # synthetic/s4f-local-window-copying_morlets_multiWin1-8_layer2
         help="Path to the Hydra output directory for the run.",
     )
     parser.add_argument(

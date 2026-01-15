@@ -110,7 +110,7 @@ def param_transform(param, transform='none'):
 from safariWave.Frame_Builder import *
 from safariWave.SSM_Builder import *
 from safariWave.SSM_Solver import *
-from safariWave import Additional_Frames as addf
+from safariWave import Additional_Frames_old as addf
 
 class SSMKernel(Kernel):
     """Parent class for different SSM parameterizations.
@@ -136,6 +136,14 @@ class SSMKernel(Kernel):
     init: Options for initialization of (A, B). For DPLR mode, recommendations are "legs", "fout", "hippo" (combination of both). For Diag mode, recommendations are "diag-inv", "diag-lin", "diag-legs", and "diag" (combination of diag-inv and diag-lin).
     init_args: Extra arguments passed into initialization function (see dplr.py for options).
     """
+
+    @torch.no_grad()
+    def get_discrete_state_matrices(self):
+        """Return discretized state matrices (Abar, Bbar) for this kernel."""
+        if not hasattr(self, "_setup_state"):
+            raise NotImplementedError("This kernel does not expose _setup_state for retrieving discretized matrices.")
+        dA, dB = self._setup_state()
+        return dA.detach().real, dB.detach().real
 
     def init_dt(self):
         # Generate dt
@@ -192,7 +200,8 @@ class SSMKernel(Kernel):
         elif self.init == "safari_morlets":
 
             # Safari Morlet
-            F_morlet = addf.morlet_frame(fmin=1, fmax=3, fstep=1, L=131072, redundancy=1)
+            # F_morlet = addf.morlet_frame(fmin=1, fmax=3, fstep=1, L=131072, redundancy=1)
+            F_morlet = addf.morlet_frame(fmin=0.2, fmax=3, fstep=0.5, L=131072, redundancy=1, make_tight=True)
             frame_morlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
             frame_morlet.make_frame(F_morlet)
 
@@ -205,7 +214,8 @@ class SSMKernel(Kernel):
         elif self.init == "safari_morlett":
 
             # Safari Morlet
-            F_morlet = addf.morlet_frame(fmin=1, fmax=3, fstep=1, L=131072, redundancy=1)
+            # F_morlet = addf.morlet_frame(fmin=1, fmax=3, fstep=1, L=131072, redundancy=1)
+            F_morlet = addf.morlet_frame(fmin=0.2, fmax=3, fstep=0.5, L=131072, redundancy=1, make_tight=True)
             frame_morlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
             frame_morlet.make_frame(F_morlet)
 

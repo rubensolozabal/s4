@@ -1,0 +1,17 @@
+_name_: local_window_copying
+l_seq: 4096
+l_window_min: 64
+l_window_max: 64          # fixed window length
+n_windows_min: 8
+n_windows_max: 8          # fixed number of windows/heads
+query_length: ${.n_windows_max}
+target_mode: reconstruct
+window_op: add            # unused for reconstruct
+dt: 0.001
+freq: 20.0
+static: false
+n_train: 10000
+n_eval: 1000
+fixed_windows: true       # place windows evenly across the sequence
+ordered_queries: true     # map window i -> head i without shuffling
+__l_max: ${eval:${.l_seq}+${.query_length}}

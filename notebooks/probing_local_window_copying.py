@@ -284,7 +284,9 @@ def main():
     parser.add_argument(
         "--run-dir",
         type=Path,
-        default=Path("S4/outputs/2026-01-06/17-11-30-731731"),  # s4f-local-window-copying-v3 default 
+        # default=Path("S4/outputs/2026-01-09/17-04-17-094343"),  # s4f-local-window-copying-v3 default 
+        default=Path("S4/outputs/2026-01-13/14-23-06-106225"),  # s4f-local-window-copying-v3-fixed-gabors_multiWin8-8_layer2_frozenL1
+
         help="Path to the Hydra output directory for the run.",
     )
     parser.add_argument(

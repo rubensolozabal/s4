@@ -172,6 +172,8 @@ class LocalWindowCopying(SequenceDataset):
             "query_length": 10,
             "target_mode": "reconstruct",
             "window_op": "add",
+            "fixed_windows": False,
+            "ordered_queries": False,
             "static": False,
             "n_train": 10000,
             "n_eval": 1000,
@@ -215,6 +217,8 @@ class LocalWindowCopying(SequenceDataset):
             query_length=self.query_length,
             target_mode=self.target_mode,
             window_op=self.window_op,
+            fixed_windows=self.fixed_windows,
+            ordered_queries=self.ordered_queries,
         )
         self.dataset_val = LocalWindowCopyingEvalDataset(
             samples=self.n_eval,
@@ -228,6 +232,8 @@ class LocalWindowCopying(SequenceDataset):
             query_length=self.query_length,
             target_mode=self.target_mode,
             window_op=self.window_op,
+            fixed_windows=self.fixed_windows,
+            ordered_queries=self.ordered_queries,
         )
         self.dataset_test = None
 
