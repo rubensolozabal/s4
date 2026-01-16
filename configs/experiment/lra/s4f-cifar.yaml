@@ -16,10 +16,10 @@ model:
     lr: 0.001
     dt_min: 0.001
     dt_max: 0.1
-    init: legs
+    init: safari_legs
     bidirectional: true
     n_ssm: 1
-    mode: frame
+    mode: real
 
 dataset:
   grayscale: true

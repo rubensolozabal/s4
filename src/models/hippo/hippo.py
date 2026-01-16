@@ -150,145 +150,144 @@ def transition(measure, N, **measure_args):
 
             # Safari Legs
             myFrame = Fobj(fname='legendre', params={'N':N, 'L':100000})
-            safari_legs = SSM(  Fobjgiven=myFrame, params={ 'meas':'scaled'})
-            A, B = safari_legs.A, safari_legs.B
+            ssm = SSM(  Fobjgiven=myFrame, params={ 'meas':'scaled'})
+            A, B = ssm.A, ssm.B
 
         elif measure == "safari_morletS":
 
             # Safari Morlet
-            F_morlet = addf.morlet_frame(N, 131072, make_tight=False)
-            frame_morlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_morlet.make_frame(F_morlet)
+            F = addf.morlet_frame(N, 131072, make_tight=False)
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
 
-            MorletS = SSM(Fobjgiven=frame_morlet, params={'fname':'morlet',  'meas': 'scaled'})
-            A, B = MorletS.A, MorletS.B
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'morlet',  'meas': 'scaled'})
+            A, B = ssm.A, ssm.B
 
 
         elif measure == "safari_morletT":
 
             # Safari Morlet
-            F_morlet = addf.morlet_frame(N, 131072, make_tight=False)
-            frame_morlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_morlet.make_frame(F_morlet)
+            F = addf.morlet_frame(N, 131072, make_tight=False)
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
 
-            MorletT = SSM(Fobjgiven=frame_morlet, params={'fname':'morlet',  'meas': 'translated'})
-            A, B = MorletT.A, MorletT.B
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'morlet',  'meas': 'translated'})
+            A, B = ssm.A, ssm.B
 
 
         elif measure == "safari_cmorletS":
             # Safari Complex Morlet
-            F_cmorlet = addf.cmorlet_frame(N, 131072, make_tight=False)
-            frame_cmorlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_cmorlet.make_frame(F_cmorlet)
-
-            CMorletS = SSM(Fobjgiven=frame_cmorlet, params={'fname':'cmorlet',  'meas': 'scaled'})
-            A, B = CMorletS.A, CMorletS.B
+            F = addf.cmorlet_frame(N, 131072, make_tight=False)
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'cmorlet',  'meas': 'scaled'})
+            A, B = ssm.A, ssm.B
 
 
         elif measure == "safari_cmorletT":
             # Safari Complex Morlet
-            F_cmorlet = addf.cmorlet_frame(N, 131072, make_tight=False)
-            frame_cmorlet= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_cmorlet.make_frame(F_cmorlet)
+            F = addf.cmorlet_frame(N, 131072, make_tight=False)
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
 
-            CMorletT = SSM(Fobjgiven=frame_cmorlet, params={'fname':'cmorlet',  'meas': 'translated'})
-            A, B = CMorletT.A, CMorletT.B   
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'cmorlet',  'meas': 'translated'})
+            A, B = ssm.A, ssm.B   
 
 
         elif measure == "safari_cgaussS":
             # Safari Complex Gauss
-            F_cgauss = addf.cgauss_frame(N, 131072, make_tight=False) 
-            frame_cgauss= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_cgauss.make_frame(F_cgauss)
+            F = addf.cgauss_frame(N, 131072, make_tight=False) 
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
 
-            CGauS = SSM(Fobjgiven=frame_cgauss, params={'fname':'cgabor',  'meas': 'scaled'})
-            A, B = CGauS.A, CGauS.B
-
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'cgabor',  'meas': 'scaled'})
+            A, B = ssm.A, ssm.B
 
         elif measure == "safari_cgaussT":
             # Safari Complex Gauss
-            F_cgauss = addf.cgauss_frame(N, 131072, make_tight=False) 
-            frame_cgauss= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_cgauss.make_frame(F_cgauss)
+            F = addf.cgauss_frame(N, 131072, make_tight=False) 
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
 
-            CGauT = SSM(Fobjgiven=frame_cgauss, params={'fname':'cgabor',  'meas': 'translated'})
-            A, B = CGauT.A, CGauT.B   
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'cgabor',  'meas': 'translated'})
+            A, B = ssm.A, ssm.B   
 
 
         elif measure == "safari_gaussS":
 
             # Safari Gauss
-            F_gauss = addf.gauss_frame(N, 131072, make_tight=False) 
-            frame_gauss= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_gauss.make_frame(F_gauss)
+            F = addf.gauss_frame(N, 131072, make_tight=False) 
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
 
-            GauS = SSM(Fobjgiven=frame_gauss, params={'fname':'gabor',  'meas': 'scaled'})
-            A, B = GauS.A, GauS.B
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'gabor',  'meas': 'scaled'})
+            A, B = ssm.A, ssm.B
 
         elif measure == "safari_gaussT":
 
             # Safari Gauss
-            F_gauss = addf.gauss_frame(N, 131072, make_tight=False) 
-            frame_gauss= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_gauss.make_frame(F_gauss)
+            F = addf.gauss_frame(N, 131072, make_tight=False) 
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
 
-            GauT = SSM(Fobjgiven=frame_gauss, params={'fname':'gabor',  'meas': 'translated'})
-            A, B = GauT.A, GauT.B   
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'gabor',  'meas': 'translated'})
+            A, B = ssm.A, ssm.B   
             
 
         elif measure == "safari_mexhatS":
             # Safari Mexhat
-            F_mexhat = addf.mexhat_frame(N, 131072, make_tight=False) 
-            frame_mexhat= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_mexhat.make_frame(F_mexhat)
+            F = addf.mexhat_frame(N, 131072, make_tight=False) 
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
 
-            MexhatS = SSM(Fobjgiven=frame_mexhat, params={'fname':'mexhat',  'meas': 'scaled'})
-            A, B = MexhatS.A, MexhatS.B   
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'mexhat',  'meas': 'scaled'})
+            A, B = ssm.A, ssm.B   
 
         elif measure == "safari_mexhatT":
             # Safari Mexhat
-            F_mexhat = addf.mexhat_frame(N, 131072, make_tight=False) 
-            frame_mexhat= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_mexhat.make_frame(F_mexhat)
+            F = addf.mexhat_frame(N, 131072, make_tight=False) 
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
 
-            MexhatT = SSM(Fobjgiven=frame_mexhat, params={'fname':'mexhat',  'meas': 'translated'})
-            A, B = MexhatT.A, MexhatT.B   
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'mexhat',  'meas': 'translated'})
+            A, B = ssm.A, ssm.B   
             
 
         elif measure == "safari_shannonS":
             # Safari Shannon
-            F_shannon = addf.shannon_frame(N, 131072, make_tight=False) 
-            frame_shannon= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_shannon.make_frame(F_shannon)
-            ShannonS = SSM(Fobjgiven=frame_shannon, params={'fname':'shannon',  'meas': 'scaled'})
-            A, B = ShannonS.A, ShannonS.B   
+            F = addf.shannon_frame(N, 131072, make_tight=False) 
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
+            
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'shannon',  'meas': 'scaled'})
+            A, B = ssm.A, ssm.B   
 
 
         elif measure == "safari_shannonT":
             # Safari Shannon
-            F_shannon = addf.shannon_frame(N, 131072, make_tight=False) 
-            frame_shannon= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_shannon.make_frame(F_shannon)
-            ShannonT = SSM(Fobjgiven=frame_shannon, params={'fname':'shannon',  'meas': 'translated'})
-            A, B = ShannonT.A, ShannonT.B   
+            F = addf.shannon_frame(N, 131072, make_tight=False) 
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'shannon',  'meas': 'translated'})
+            A, B = ssm.A, ssm.B   
 
 
         elif measure == "safari_fbspS":
             # Safari FBSP
-            F_fbsp = addf.fbsp_frame(N, 131072, make_tight=False) 
-            frame_fbsp= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_fbsp.make_frame(F_fbsp)
-            FBSPs = SSM(Fobjgiven=frame_fbsp, params={'fname':'fbsp',  'meas': 'scaled'})
-            A, B = FBSPs.A, FBSPs.B   
+            F = addf.fbsp_frame(N, 131072, make_tight=False) 
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'fbsp',  'meas': 'scaled'})
+            A, B = ssm.A, ssm.B   
             
 
         elif measure == "safari_fbspT":
             # Safari FBSP
-            F_fbsp = addf.fbsp_frame(N, 131072, make_tight=False) 
-            frame_fbsp= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            frame_fbsp.make_frame(F_fbsp)
-            FBSPt = SSM(Fobjgiven=frame_fbsp, params={'fname':'fbsp',  'meas': 'translated'})
-            A, B = FBSPt.A, FBSPt.B   
+            F = addf.fbsp_frame(N, 131072, make_tight=False) 
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':'fbsp',  'meas': 'translated'})
+            A, B = ssm.A, ssm.B   
 
         else:
             raise NotImplementedError(f"Frame initialization {measure} not implemented.")
@@ -300,6 +299,74 @@ def transition(measure, N, **measure_args):
         raise NotImplementedError
 
     return A, B
+
+
+from typing import Union, Optional
+
+ArrayLike = Union[np.ndarray, torch.Tensor]
+
+
+def frame_rank_correction_P_from_F(
+    F: ArrayLike,
+    rank: int = 1,
+    side: str = "right",          # "right" -> t=b uses F[:, -1], "left" -> t=a uses F[:, 0]
+    parity_split: bool = False,   # if True and rank>=2, split into even/odd like LegT
+    dtype: torch.dtype = torch.float32,
+    device: Optional[torch.device] = None,
+) -> torch.Tensor:
+    """
+    F: (N, L) numpy or torch, where F[n, l] = phi_n(t_l).
+    Returns:
+        P: (rank, N) with rank=1 or 2 (or padded with zeros if rank>2).
+    """
+    # Convert to torch
+    if isinstance(F, np.ndarray):
+        Ft = torch.from_numpy(F)
+    elif isinstance(F, torch.Tensor):
+        Ft = F
+    else:
+        raise TypeError(f"F must be np.ndarray or torch.Tensor, got {type(F)}")
+
+    if device is not None:
+        Ft = Ft.to(device)
+
+    # Keep complex if present; otherwise cast to dtype
+    if not torch.is_complex(Ft):
+        Ft = Ft.to(dtype)
+
+    if Ft.ndim != 2:
+        raise ValueError(f"Expected F to have shape (N, L), got {tuple(Ft.shape)}")
+
+    N, L = Ft.shape
+    if L < 1:
+        raise ValueError("F must have L>=1 samples")
+
+    if side not in ("right", "left"):
+        raise ValueError("side must be 'right' or 'left'")
+
+    # Boundary evaluation vector v in R^N (or C^N)
+    v = Ft[:, -1] if side == "right" else Ft[:, 0]   # (N,)
+
+    # Build P with expected shapes
+    if rank <= 1:
+        P = v.unsqueeze(0)  # (1, N)
+    else:
+        if parity_split:
+            # even/odd split across basis index n
+            P0 = v.clone()
+            P0[1::2] = 0
+            P1 = v.clone()
+            P1[0::2] = 0
+            P = torch.stack([P0, P1], dim=0) * (2.0 ** -0.5)  # (2, N)
+        else:
+            P = torch.stack([v, v], dim=0)  # (2, N)
+
+        # Pad with zeros if rank > 2 (matches your original rank_correction behavior)
+        if rank > P.shape[0]:
+            pad = torch.zeros((rank - P.shape[0], N), dtype=P.dtype, device=P.device)
+            P = torch.cat([P, pad], dim=0)  # (rank, N)
+
+    return P
 
 def rank_correction(measure, N, rank=1, dtype=torch.float):
     """Return low-rank matrix L such that A + L is normal."""
@@ -337,6 +404,24 @@ def rank_correction(measure, N, rank=1, dtype=torch.float):
         P = 2**.5 * P.unsqueeze(0)
     elif measure in ['fourier_diag', 'foud', 'legsd']:
         P = torch.zeros(1, N, dtype=dtype)
+
+    elif measure.startswith('safari_'):
+        # Use frame to compute rank correction
+
+        if measure == "safari_morletS":
+
+            # Safari Morlet
+            F = addf.morlet_frame(N, 131072, make_tight=False)
+            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+            myFrame.make_frame(F)
+        
+        else: raise NotImplementedError(f"Frame initialization {measure} not implemented for rank correction.")
+
+        use_left = True
+        use_right = True
+
+        P = frame_rank_correction_P_from_F(F, rank=rank)  # (r, N)
+
     else: raise NotImplementedError
 
     d = P.size(0)
