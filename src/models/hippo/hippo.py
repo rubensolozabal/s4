@@ -49,6 +49,10 @@ def create_safari_frame(measure, N):
     elif measure.startswith("safari_fbsp"):
         F = addf.fbsp_frame(N, L, make_tight=False)
 
+    elif measure.startswith("safari_dpss"):
+        L=2**10  # Use smaller L for DPSS to avoid numerical issues
+        F = addf.dpss_frame(N, L, make_tight=False)
+
     else:
         raise NotImplementedError(f"Frame initialization {measure} not implemented.")
 
