@@ -24,6 +24,36 @@ def embed_c2r(A):
 
 # TODO take in 'torch' option to return torch instead of numpy, and converts the shape of B from (N, 1) to (N)
 # TODO remove tlagt
+
+def create_safari_frame(measure, N):
+
+    L = 2**17  # Number of samples in frame
+    if measure.startswith("safari_morlet"):
+        F = addf.morlet_frame(N, L, make_tight=False)
+
+    elif measure.startswith("safari_cmorlet"):
+        F = addf.cmorlet_frame(N, L, make_tight=False)
+
+    elif measure.startswith("safari_cgauss"):
+        F = addf.cgauss_frame(N, L, make_tight=False)
+
+    elif measure.startswith("safari_gauss"):
+        F = addf.gauss_frame(N, L, make_tight=False)
+
+    elif measure.startswith("safari_mexhat"):
+        F = addf.mexhat_frame(N, L, make_tight=False)
+
+    elif measure.startswith("safari_shannon"):
+        F = addf.shannon_frame(N, L, make_tight=False)
+
+    elif measure.startswith("safari_fbsp"):
+        F = addf.fbsp_frame(N, L, make_tight=False)
+
+    else:
+        raise NotImplementedError(f"Frame initialization {measure} not implemented.")
+
+    return F
+
 def transition(measure, N, **measure_args):
     """A, B transition matrices for different measures.
 
@@ -146,152 +176,20 @@ def transition(measure, N, **measure_args):
 
     elif measure.startswith('safari_'):
 
-        if measure == "safari_legS":
+        F = create_safari_frame(measure, N)
+        myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
+        myFrame.make_frame(F)
 
-            # Safari Legs
-            myFrame = Fobj(fname='legendre', params={'N':N, 'L':100000})
-            ssm = SSM(  Fobjgiven=myFrame, params={ 'meas':'scaled'})
-            A, B = ssm.A, ssm.B
-
-        elif measure == "safari_morletS":
-
-            # Safari Morlet
-            F = addf.morlet_frame(N, 131072, make_tight=False)
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'morlet',  'meas': 'scaled'})
-            A, B = ssm.A, ssm.B
-
-
-        elif measure == "safari_morletT":
-
-            # Safari Morlet
-            F = addf.morlet_frame(N, 131072, make_tight=False)
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'morlet',  'meas': 'translated'})
-            A, B = ssm.A, ssm.B
-
-
-        elif measure == "safari_cmorletS":
-            # Safari Complex Morlet
-            F = addf.cmorlet_frame(N, 131072, make_tight=False)
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'cmorlet',  'meas': 'scaled'})
-            A, B = ssm.A, ssm.B
-
-
-        elif measure == "safari_cmorletT":
-            # Safari Complex Morlet
-            F = addf.cmorlet_frame(N, 131072, make_tight=False)
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'cmorlet',  'meas': 'translated'})
-            A, B = ssm.A, ssm.B   
-
-
-        elif measure == "safari_cgaussS":
-            # Safari Complex Gauss
-            F = addf.cgauss_frame(N, 131072, make_tight=False) 
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'cgabor',  'meas': 'scaled'})
-            A, B = ssm.A, ssm.B
-
-        elif measure == "safari_cgaussT":
-            # Safari Complex Gauss
-            F = addf.cgauss_frame(N, 131072, make_tight=False) 
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'cgabor',  'meas': 'translated'})
-            A, B = ssm.A, ssm.B   
-
-
-        elif measure == "safari_gaussS":
-
-            # Safari Gauss
-            F = addf.gauss_frame(N, 131072, make_tight=False) 
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'gabor',  'meas': 'scaled'})
-            A, B = ssm.A, ssm.B
-
-        elif measure == "safari_gaussT":
-
-            # Safari Gauss
-            F = addf.gauss_frame(N, 131072, make_tight=False) 
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'gabor',  'meas': 'translated'})
-            A, B = ssm.A, ssm.B   
-            
-
-        elif measure == "safari_mexhatS":
-            # Safari Mexhat
-            F = addf.mexhat_frame(N, 131072, make_tight=False) 
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'mexhat',  'meas': 'scaled'})
-            A, B = ssm.A, ssm.B   
-
-        elif measure == "safari_mexhatT":
-            # Safari Mexhat
-            F = addf.mexhat_frame(N, 131072, make_tight=False) 
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'mexhat',  'meas': 'translated'})
-            A, B = ssm.A, ssm.B   
-            
-
-        elif measure == "safari_shannonS":
-            # Safari Shannon
-            F = addf.shannon_frame(N, 131072, make_tight=False) 
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-            
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'shannon',  'meas': 'scaled'})
-            A, B = ssm.A, ssm.B   
-
-
-        elif measure == "safari_shannonT":
-            # Safari Shannon
-            F = addf.shannon_frame(N, 131072, make_tight=False) 
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'shannon',  'meas': 'translated'})
-            A, B = ssm.A, ssm.B   
-
-
-        elif measure == "safari_fbspS":
-            # Safari FBSP
-            F = addf.fbsp_frame(N, 131072, make_tight=False) 
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'fbsp',  'meas': 'scaled'})
-            A, B = ssm.A, ssm.B   
-            
-
-        elif measure == "safari_fbspT":
-            # Safari FBSP
-            F = addf.fbsp_frame(N, 131072, make_tight=False) 
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-            ssm = SSM(Fobjgiven=myFrame, params={'fname':'fbsp',  'meas': 'translated'})
-            A, B = ssm.A, ssm.B   
-
+        if measure.endswith('S'):
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':measure,  'meas': 'scaled'})
+        elif measure.endswith('T'):
+            ssm = SSM(Fobjgiven=myFrame, params={'fname':measure,  'meas': 'translated'})
         else:
-            raise NotImplementedError(f"Frame initialization {measure} not implemented.")
+            raise NotImplementedError(f"Frame initialization {measure} not implemented for SSM type.")
+        
+        A, B = ssm.A, ssm.B
 
+    
         assert A.shape[0] == N, f"Frame initialization {measure} produced wrong size A matrix."
 
         A = -A # Negate A to match S4 convention
@@ -368,6 +266,7 @@ def frame_rank_correction_P_from_F(
 
     return P
 
+
 def rank_correction(measure, N, rank=1, dtype=torch.float):
     """Return low-rank matrix L such that A + L is normal."""
 
@@ -407,20 +306,10 @@ def rank_correction(measure, N, rank=1, dtype=torch.float):
 
     elif measure.startswith('safari_'):
         # Use frame to compute rank correction
+        F = create_safari_frame(measure, N)
 
-        if measure == "safari_morletS":
+        P = frame_rank_correction_P_from_F(F, rank=rank, dtype=dtype)  # (r, N)
 
-            # Safari Morlet
-            F = addf.morlet_frame(N, 131072, make_tight=False)
-            myFrame= Fobj(fname='manual', params={"range_min":0.0, "range_max":1.0})
-            myFrame.make_frame(F)
-        
-        else: raise NotImplementedError(f"Frame initialization {measure} not implemented for rank correction.")
-
-        use_left = True
-        use_right = True
-
-        P = frame_rank_correction_P_from_F(F, rank=rank)  # (r, N)
 
     else: raise NotImplementedError
 
@@ -443,8 +332,34 @@ def initial_C(measure, N, dtype=torch.float):
 
     return C
 
+def project_to_const_plus_skew(AP: torch.Tensor) -> torch.Tensor:
+    """
+    Project AP onto the set { c I + S | S^* = -S } in Frobenius sense,
+    by replacing its Hermitian part with a scalar multiple of I and keeping
+    the skew-Hermitian part.
 
-def nplr(measure, N, rank=1, dtype=torch.float, diagonalize_precision=True, B_clip=2.0):
+    Works for real or complex AP.
+    """
+    # Symmetric / Hermitian part and skew part
+    if torch.is_complex(AP):
+        Sym  = 0.5 * (AP + AP.conj().transpose(-1, -2))
+        Skew = 0.5 * (AP - AP.conj().transpose(-1, -2))
+    else:
+        Sym  = 0.5 * (AP + AP.transpose(-1, -2))
+        Skew = 0.5 * (AP - AP.transpose(-1, -2))
+
+    # Best scalar multiple of I (Frobenius projection) is mean of diagonal
+    c = Sym.diagonal(dim1=-2, dim2=-1).real.mean()   # scalar real
+
+    N   = AP.shape[-1]
+    eye = torch.eye(N, dtype=AP.dtype, device=AP.device)
+
+    # New matrix: skew part + scalar identity
+    AP_proj = Skew + c * eye
+    return AP_proj
+
+
+def nplr(measure, N, rank=1, dtype=torch.float, diagonalize_precision=True, B_clip=2.0, project_skew_diag=True):
     """Constructs NPLR form of HiPPO matrices.
 
     Returns w, p, q, V, B such that
@@ -466,7 +381,17 @@ def nplr(measure, N, rank=1, dtype=torch.float, diagonalize_precision=True, B_cl
     B = torch.as_tensor(B, dtype=dtype)[:, 0] # (N,)
 
     P = rank_correction(measure, N, rank=rank, dtype=dtype) # (r N)
+
     AP = A + torch.sum(P.unsqueeze(-2)*P.unsqueeze(-1), dim=-3)
+
+    # >>>>>> NEW: project onto const·I + skew <<<<<<
+    if project_skew_diag:
+        AP_proj = project_to_const_plus_skew(AP)
+        # debug: see how much we changed it
+        # delta = torch.norm(AP_proj - AP, p='fro') / (torch.norm(AP, p='fro') + 1e-12)
+        # print("relative projection change:", float(delta))
+        AP = AP_proj
+    # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     # We require AP to be nearly skew-symmetric
     _A = AP + AP.transpose(-1, -2)
