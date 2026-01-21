@@ -4,7 +4,7 @@ defaults:
   - /model: s4
 
 dataset:
-  l_seq: 4096
+  l_seq: 4000
   l_window_min: 64
   l_window_max: 64
   n_windows_min: 1
