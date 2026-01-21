@@ -1,0 +1,8 @@
+_name_: ptbxl
+sampling_rate: 100
+duration: 10
+nleads: 12
+ctype: superdiagnostic
+min_samples: 0
+data_dir: ~/Documents/github/ecg_ptbxl_benchmarking/data/ptbxl
+__l_max: ${eval:${.sampling_rate}*${.duration}}
