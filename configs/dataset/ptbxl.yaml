@@ -4,5 +4,5 @@ duration: 10
 nleads: 12
 ctype: superdiagnostic
 min_samples: 0
-data_dir: ~/Documents/github/ecg_ptbxl_benchmarking/data/ptbxl
+data_dir: ${oc.env:DATA_PATH,${hydra:runtime.cwd}/data}/ptbxl
 __l_max: ${eval:${.sampling_rate}*${.duration}}

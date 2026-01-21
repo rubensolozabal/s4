@@ -18,7 +18,5 @@ decoder:
   mode: pool
 
 task:
-  torchmetrics:
-    - AUROC
   metrics:
     - binary_accuracy

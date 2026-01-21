@@ -14,7 +14,7 @@ model:
     d_state: 64
     bidirectional: true
     final_act: glu
-    n_ssm: None
+    n_ssm: null
 
 loader:
   batch_size: 16
@@ -31,7 +31,5 @@ scheduler:
   num_warmup_steps: 5000
 
 train:
-  seed: 2024
+  seed: 5555
 
-wandb:
-  name: ptbxl/s4-ptbxl

@@ -57,20 +57,104 @@ class BaseTask:
             self.loss_val = instantiate(M.output_metric_fns, loss_val, partial=True)
             self.loss_val = U.discard_kwargs(self.loss_val)
 
-    def _init_torchmetrics(self, prefix):
+    def _init_torchmetrics(self, prefix, sample=None):
         """Instantiate torchmetrics."""
         # TODO torchmetrics is better renamed to "epoch_metrics" or something
 
-        self._tracked_torchmetrics[prefix] = {}
-        for name in self.torchmetric_names:
-            if name in ['AUROC', 'StatScores', 'Precision', 'Recall', 'F1', 'F1Score']:
-                self._tracked_torchmetrics[prefix][name] = getattr(tm, name)(average='macro', num_classes=self.dataset.d_output, compute_on_step=False).to('cuda')
-            elif '@' in name:
-                k = int(name.split('@')[1])
-                mname = name.split('@')[0]
-                self._tracked_torchmetrics[prefix][name] = getattr(tm, mname)(average='macro', num_classes=self.dataset.d_output, compute_on_step=False, top_k=k).to('cuda')
+        def _infer_torchmetric_task(sample):
+            """Infer torchmetrics task type and cardinality from a sample target."""
+            task = None
+            num_classes = getattr(self.dataset, "d_output", None)
+            num_labels = None
+
+            if sample is not None:
+                _, target = sample
+                if isinstance(target, (tuple, list)):
+                    target = target[0]
+                if isinstance(target, torch.Tensor):
+                    if target.ndim > 1 and target.shape[-1] > 1:
+                        task = "multilabel"
+                        num_labels = target.shape[-1]
+                        num_classes = num_labels
+                    elif num_classes is not None and num_classes > 1:
+                        task = "multiclass"
+                    else:
+                        task = "binary"
+
+            if task is None:
+                if num_classes is None or num_classes <= 1:
+                    task = "binary"
+                else:
+                    task = "multiclass"
+
+            if task == "multilabel" and num_labels is None and num_classes is not None:
+                num_labels = num_classes
+            return task, num_classes, num_labels
+
+        def _tm_kwargs(task, num_classes, num_labels, average="macro", top_k=None):
+            kwargs = {"compute_on_step": False}
+            if task == "multilabel":
+                kwargs.update({"task": task, "num_labels": num_labels, "average": average})
+            elif task == "multiclass":
+                kwargs.update({"task": task, "num_classes": num_classes, "average": average})
             else:
-                self._tracked_torchmetrics[prefix][name] = getattr(tm, name)(compute_on_step=False).to('cuda')
+                kwargs.update({"task": "binary", "average": average})
+            if top_k is not None:
+                kwargs["top_k"] = top_k
+            return {k: v for k, v in kwargs.items() if v is not None}
+
+        def _instantiate_metric(metric_cls, *kwargs_options):
+            """Try instantiating torchmetrics across API versions."""
+            last_error = None
+            for kwargs in kwargs_options:
+                try:
+                    return metric_cls(**kwargs).to("cuda")
+                except (TypeError, ValueError) as e:
+                    last_error = e
+            # Final fallback without any kwargs in case all else fails
+            try:
+                return metric_cls().to("cuda")
+            except Exception:
+                if last_error is not None:
+                    raise last_error
+                raise
+
+        def _build_metric(name, task, num_classes, num_labels, top_k=None):
+            metric_cls = getattr(tm, name)
+            kwargs_new = _tm_kwargs(task, num_classes, num_labels, top_k=top_k)
+            kwargs_old = {"compute_on_step": False}
+            if task in {"multilabel", "multiclass"}:
+                kwargs_old["average"] = "macro"
+                if num_classes is not None:
+                    kwargs_old["num_classes"] = num_classes
+            if top_k is not None:
+                kwargs_old["top_k"] = top_k
+            kwargs_new_no_compute = {k: v for k, v in kwargs_new.items() if k != "compute_on_step"}
+            kwargs_old_no_compute = {k: v for k, v in kwargs_old.items() if k != "compute_on_step"}
+            return _instantiate_metric(
+                metric_cls,
+                kwargs_new,
+                kwargs_old,
+                kwargs_new_no_compute,
+                kwargs_old_no_compute,
+            )
+
+        self._tracked_torchmetrics[prefix] = {}
+        task, num_classes, num_labels = _infer_torchmetric_task(sample)
+        for name in self.torchmetric_names:
+            if name in ["AUROC", "StatScores", "Precision", "Recall", "F1", "F1Score", "Accuracy"]:
+                self._tracked_torchmetrics[prefix][name] = _build_metric(name, task, num_classes, num_labels)
+            elif "@" in name:
+                k = int(name.split("@")[1])
+                mname = name.split("@")[0]
+                self._tracked_torchmetrics[prefix][name] = _build_metric(mname, task, num_classes, num_labels, top_k=k)
+            else:
+                metric_cls = getattr(tm, name)
+                self._tracked_torchmetrics[prefix][name] = _instantiate_metric(
+                    metric_cls,
+                    {"compute_on_step": False},
+                    {},
+                )
 
     def _reset_torchmetrics(self, prefix=None):
         """Reset torchmetrics for a prefix associated with a particular dataloader (e.g. train, val, test).
@@ -100,7 +184,7 @@ class BaseTask:
         Generally call this every batch.
         """
         if prefix not in self._tracked_torchmetrics:
-            self._init_torchmetrics(prefix)
+            self._init_torchmetrics(prefix, sample=(x, y))
 
         for name in self.torchmetric_names:
             if name.startswith('Accuracy'):
