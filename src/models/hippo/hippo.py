@@ -54,7 +54,7 @@ def create_safari_frame(measure, N):
         F = addf.dpss_frame(N, L, make_tight=False)
 
     elif measure.startswith("safari_db6"):
-        F = addf.db6_frame(N, L, wavelet_name='db6', make_tight=False)
+        F = addf.db6_frame(N, L, make_tight=False)
 
 
     else:
